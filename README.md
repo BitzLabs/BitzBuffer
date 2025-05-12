@@ -1,12 +1,12 @@
-# C# High-Performance Buffer Management Library (プロジェクト名案: BufferPlus / MemForge / FlexBuffers)
+# BitzBuffer: C# High-Performance Buffer Management Library
 
-<!-- プロジェクト名は仮です。良い名前があればぜひ！ -->
+**C# で書かれた高性能なバッファ管理ライブラリ「BitzBuffer」です。大量のデータを効率的に扱うアプリケーション（画像処理、CAD、機械学習、FA通信など）向けに設計されています。**
 
-**C# で書かれた高性能なバッファ管理ライブラリです。大量のデータを効率的に扱うアプリケーション（画像処理、CAD、機械学習、FA通信など）向けに設計されています。**
-
-このライブラリは、メモリ効率の最大化 (GC負荷軽減、LOH回避、ゼロコピー操作)、多様なメモリ種別（マネージド、アンマネージド、将来的にGPU）の統一的な取り扱い、そして開発者にとって使いやすいAPIの提供を目指しています。
+このライブラリは、メモリ効率の最大化 (GC負荷軽減、LOH回避、ゼロコピー操作の促進)、多様なメモリ種別（マネージド、アンマネージド、将来的にGPU）の統一的な取り扱い、そして開発者にとって使いやすいAPIの提供を目指しています。「ちょっとした」ニーズにも応え、「かゆいところに手が届く」ような柔軟性を持ち合わせることを目標としています。
 
 **このリポジトリは、ライブラリの要求仕様と設計ドキュメントを管理しています。実装は別途進行予定です。**
+
+<!-- (以下、内容は前回と同じ) -->
 
 ## ✨ 主な機能と設計目標
 
@@ -40,7 +40,7 @@
 
 // --- BufferManager のセットアップ (DIコンテナなどで行う想定) ---
 var services = new ServiceCollection();
-services.AddBufferManager(options =>
+services.AddBitzBufferManager(options => // プロジェクト名に合わせて変更
 {
     options.AddManagedProvider("MyManagedPool", managedOptions =>
     {
@@ -61,7 +61,7 @@ services.AddBufferManager(options =>
     });
 });
 var serviceProvider = services.BuildServiceProvider();
-var bufferManager = serviceProvider.GetRequiredService<IBufferManager>();
+var bufferManager = serviceProvider.GetRequiredService<IBufferManager>(); // IBufferManager は BitzBuffer が提供
 
 // --- マネージドバッファの利用 ---
 var managedProvider = bufferManager.GetProvider("MyManagedPool");
