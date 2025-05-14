@@ -1,6 +1,6 @@
-# C# Buffer管理ライブラリ 要求仕様 - コアインターフェース
+# BitzBuffer 設計仕様 - コアインターフェース
 
-このドキュメントは、バッファ管理ライブラリの中心となる共通インターフェース群について詳述します。
+このドキュメントは、バッファ管理ライブラリ「BitzBuffer」の中心となる共通インターフェース群について詳述します。
 
 ## 3. バッファ共通インターフェース
 
@@ -24,6 +24,7 @@
         *   所有権を失ったバッファ (`IsOwner == false`, `IsDisposed == false`): `Dispose()` が呼ばれると `IsDisposed = true` となり、デバッグビルドでは警告ログが出力される。実質的なリソース解放は行わない（既に責任がないため）。
         *   複数回の `Dispose()` 呼び出しは安全です（2回目以降は何もしない）。
 *   **読み取り専用スライス:** `IReadOnlyBuffer<T>.Slice` 操作は常に読み取り専用のバッファ (`IReadOnlyBuffer<T>`) を返します。スライスは元のバッファのデータを参照するビューであり、データを所有しません (`IsOwner == false`)。元のバッファが無効になるとスライスも無効になります。
+*   **スレッドセーフティ:** `IBufferProvider` から取得した個々の `IBuffer<T>` インスタンスのメソッドはスレッドセーフではありません。単一の `IBuffer<T>` インスタンスを複数のスレッドから同時に操作する場合は、呼び出し側で適切な同期を行う必要があります。プーリング機構自体はスレッドセーフに設計されます（詳細は [`Docs/DesignSpecs/03_Pooling.md`](Docs/DesignSpecs/03_Pooling.md) を参照）。
 
 ### 3.2. インターフェース階層
 
@@ -118,7 +119,7 @@ public interface IWritableBuffer<T> : IBufferState
     // IsOwner, IsDisposed は IBufferState から継承。
     // 書き込み操作の前には、これらのプロパティを確認し、
     // IsOwner が false または IsDisposed が true の場合は例外をスローすることが実装に期待されます。
-    // (詳細は 05_Error_Handling.md を参照)
+    // (詳細は Docs/DesignSpecs/05_Error_Handling.md を参照)
 
     // バッファの末尾に書き込むためのメモリ領域を取得します。
     Memory<T> GetMemory(int sizeHint = 0);
@@ -141,7 +142,7 @@ public interface IWritableBuffer<T> : IBufferState
     // takeOwnership = true の場合、元のバッファセグメントの所有権を引き継ぎます (ゼロコピー)。
     // 元のバッファは IsOwner が false になり、解放責任はこのバッファに移ります。
     // takeOwnership = false の場合、データはコピーされます。
-    // 所有権の奪取は限定的なサポートとなります(詳細は 02_Providers_And_Buffers.md, 06_Future_Extensions.md 参照)。
+    // 所有権の奪取は限定的なサポートとなります(詳細は Docs/DesignSpecs/02_Providers_And_Buffers.md および本ドキュメントの「3.4. 将来の拡張」を参照)。
     bool TryAttachSequence(ReadOnlySequence<T> sequenceToAttach, bool takeOwnership);
 
     // バッファの内容をクリアし、論理的な長さを0にリセットします。
@@ -151,7 +152,7 @@ public interface IWritableBuffer<T> : IBufferState
     void Truncate(long length);
 }
 
-// バッファ管理ライブラリにおける主要なバッファインターフェース。
+// バッファ管理ライブラリ「BitzBuffer」における主要なバッファインターフェース。
 // IReadOnlyBuffer<T> (IOwnedResource と IBufferState を含む) と
 // IWritableBuffer<T> (IBufferState を含む) の両方を継承します。
 // これにより、読み書き可能な機能と完全なライフサイクル管理を提供します。
@@ -163,7 +164,7 @@ public interface IBuffer<T> : IReadOnlyBuffer<T>, IWritableBuffer<T>
 
     // 実装クラスは、IsOwner および IsDisposed の状態に基づいて、
     // 読み書きメソッドが呼び出された際に適切に例外をスローする必要があります。
-    // (例外の詳細は 05_Error_Handling.md を参照)
+    // (例外の詳細は Docs/DesignSpecs/05_Error_Handling.md を参照)
 
     // 将来的な拡張ポイント。
     // 例:
@@ -171,3 +172,20 @@ public interface IBuffer<T> : IReadOnlyBuffer<T>, IWritableBuffer<T>
     // string? AssociatedProviderName { get; } // このバッファを生成したプロバイダ名
 }
 ```
+
+### 3.4. 将来の拡張 (コアインターフェース関連)
+
+*   **高度な所有権管理:**
+    *   参照カウントベースのより高度な所有権管理メカニズムを導入し、`IMemoryOwner<T>` との連携を強化することを検討します。
+*   **複雑なバッファ操作API:**
+    *   `IBuffer<T>` の拡張メソッドとして、バッファの連結（`Concat`）、分割（`Split`）、特定パターンの検索など、より高度なデータ操作ユーティリティの提供を検討します。
+*   **`TryAttachSequence` の機能強化:**
+    *   `takeOwnership = true` のサポート範囲を拡大し、より広範な `ReadOnlySequence<T>` ソースに対する所有権奪取メカニズムや、結果のより詳細なフィードバックを検討します。
+*   **`TrySlice` パターンの導入:**
+    *   `IReadOnlyBuffer<T>.Slice()` が範囲外などの理由で失敗する場合に例外ではなく `bool` で成否を返す `TrySlice(...)` パターンを提供することを検討します。
+*   **Stream連携機能:**
+    *   `IBuffer<T>` の内容を効率的に `System.IO.Stream` へ書き出すメソッド (`CopyToAsync`) や、`Stream` から `IWritableBuffer<T>` へ効率的にデータを読み込むメソッド (`ReadFromAsync`)、`IBuffer<T>` を `System.IO.Stream` としてラップするアダプタクラスの提供を検討します。 (これは [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](Docs/DesignSpecs/02_Providers_And_Buffers.md) のプロバイダ機能拡張とも関連)
+*   **`IWritableBuffer<T>.GetMemory()` の高度化:**
+    *   特定のセグメントへの書き込み指定や、書き込み位置をより細かく制御できるオプションの追加を検討します。
+*   **非同期I/O向けバッファアクセスインターフェース:**
+    *   非同期I/O操作（例: `ReadAsync`, `WriteAsync`）を前提とした `IAsyncBufferReader<T>` や `IAsyncBufferWriter<T>` のようなインターフェースの検討。これは `BitzBuffer.Pipelines` プロジェクトでの主要な検討事項となる可能性があります。
