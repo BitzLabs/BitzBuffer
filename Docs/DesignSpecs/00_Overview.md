@@ -25,9 +25,9 @@
     *   詳細は [プロバイダと実装クラス (`Docs/DesignSpecs/02_Providers_And_Buffers.md`)](Docs/DesignSpecs/02_Providers_And_Buffers.md) を参照してください。
 *   **`IBufferFactory<TItem, TBuffer, TOptions>`**: `IBufferProvider` の内部で使用され、実際にバッファオブジェクト (`IBuffer<TItem>` の実装クラス) をインスタンス化します。基本的な方針は、`Create(TOptions options)` メソッドを持ち、`TOptions` で生成に必要な全情報を受け取ります。
     *   詳細は [プロバイダと実装クラス (`Docs/DesignSpecs/02_Providers_And_Buffers.md`)](Docs/DesignSpecs/02_Providers_And_Buffers.md) での `IBufferProvider` との連携部分を参照してください。
-*   **`IBufferPool<TBuffer>` / `IBufferPoolStrategy<TBuffer, TResource>`**: バッファのプーリング機構です。戦略はカスタマイズ可能です。`ArrayPool<T>` のコンセプトを参考に、独自実装を行います。
+*   **`IBufferPool<TBuffer>` / `IBufferPoolStrategy<TBuffer, TResource, TItem>`**: バッファのプーリング機構です。戦略はカスタマイズ可能です。`ArrayPool<T>` のコンセプトを参考に、独自実装を行います。
     *   詳細は [プーリング (`Docs/DesignSpecs/03_Pooling.md`)](Docs/DesignSpecs/03_Pooling.md) を参照してください。
-*   **`IBufferLifecycleHooks<TBuffer>`**: プールされるバッファのライフサイクルイベント（取得時、返却時、クリア処理など）を処理します。
+*   **`IBufferLifecycleHooks<TBuffer, TItem>`**: プールされるバッファのライフサイクルイベント（取得時、返却時、クリア処理など）を処理します。
     *   詳細は [プーリング (`Docs/DesignSpecs/03_Pooling.md`)](Docs/DesignSpecs/03_Pooling.md) を参照してください。
 *   **`IBuffer<T>` (および関連インターフェース)**: ライブラリの中心となるバッファインターフェースです。非連続メモリ、所有権管理、ライフサイクルを考慮して設計されています。
     *   詳細は [コアインターフェース (`Docs/DesignSpecs/01_Core_Interfaces.md`)](Docs/DesignSpecs/01_Core_Interfaces.md) を参照してください。
