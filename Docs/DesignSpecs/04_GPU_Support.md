@@ -1,6 +1,6 @@
-# C# Buffer管理ライブラリ 要求仕様 - GPUサポート
+# BitzBuffer 設計仕様 - GPUサポート
 
-このドキュメントは、C# Buffer管理ライブラリが将来的にGPU (Graphics Processing Unit) バッファの管理をサポートするための拡張アーキテクチャと設計方針について記述します。初期実装ではGPUサポートは直接含まれませんが、コアライブラリの設計はGPU対応を容易にするための拡張性を考慮します。
+このドキュメントは、C# Buffer管理ライブラリ「BitzBuffer」が将来的にGPU (Graphics Processing Unit) バッファの管理をサポートするための拡張アーキテクチャと設計方針について記述します。初期実装ではGPUサポートは直接含まれませんが、コアライブラリの設計はGPU対応を容易にするための拡張性を考慮します。
 
 GPUサポートは、特定のGPU API (Vulkan, OpenGL, DirectX, Metalなど) に依存するため、通常は別個の拡張ライブラリ (DLL) として提供されることを想定しています。
 
@@ -16,10 +16,11 @@ GPUサポートは、特定のGPU API (Vulkan, OpenGL, DirectX, Metalなど) に
     *   GPUデバイスの選択、コンテキスト管理など、API固有の初期化処理も担当する場合があります（または外部のコンテキスト管理ライブラリと連携）。
     *   GPUバッファ (`IBuffer<T>` のGPU実装) のプーリング戦略を実装または設定します。
 *   **登録と利用:** これらのGPUプロバイダは、`BufferManager` に他のプロバイダと同様に登録されます。利用者は、`BufferManager.TryGetProvider("VulkanRenderer1Device0", out var provider)` のように名前でプロバイダを取得し、`provider.Rent<float>(numVertices)` といった形でGPUバッファを要求できます。
+*   **`IDisposable` の実装:** GPUプロバイダも `IDisposable` を実装し、関連するGPUコンテキストやデフォルトリソースなどを適切に解放する責任を持ちます。
 
 ### 8.2. GPUバッファの実装クラス (`IBuffer<T>`の実装)
 
-*   **役割:** 各GPUプロバイダは、`IBuffer<T>` インターフェースを実装する専用のGPUバッファクラス（例: `VulkanDeviceBuffer<T>`, `OpenGLBufferObject<T>`）を提供します。
+*   **役割:** 各GPUプロバイダは、`IBuffer<T>` インターフェースを実装する専用のGPUバッファ実装クラス（例: `VulkanDeviceBuffer<T>`, `OpenGLBufferObject<T>`）を提供します。
 *   **内部構造:**
     *   GPU APIのネイティブリソースハンドル（例: `VkBuffer`, `GLuint`）や、関連するメモリハンドル（例: `VkDeviceMemory`）を `SafeHandle` の派生クラスでラップして管理します。
     *   アライメント、メモリプロパティ（デバイスローカル、ホストビジブルなど）、用途（頂点バッファ、インデックスバッファ、ユニフォームバッファなど）といったGPU固有の情報を保持します。
@@ -27,12 +28,13 @@ GPUサポートは、特定のGPU API (Vulkan, OpenGL, DirectX, Metalなど) に
     *   GPUバッファクラスも `IBufferState` (`IsOwner`, `IsDisposed`) および `IOwnedResource` (`Dispose`) を実装し、コアライブラリの所有権管理ルールに従います。
     *   `Dispose()` は、GPU APIのコマンドを通じてバッファとメモリを適切に解放します。
 *   **GPU固有インターフェース:**
-    *   `IBuffer<T>` の機能に加え、GPUバッファ固有の操作（例: ネイティブハンドルの取得、CPUへのマッピング/アンマッピング、コマンドバッファへのバインド指示など）を公開するために、追加のインターフェース (例: `IMappableGpuBuffer<T>`, `IVulkanBufferInfo`) を定義し、GPUバッファクラスがそれを実装することができます。
+    *   `IBuffer<T>` の機能に加え、GPUバッファ固有の操作（例: ネイティブハンドルの取得、CPUへのマッピング/アンマッピング、コマンドバッファへのバインド指示など）を公開するために、追加のインターフェース (例: `IMappableGpuBuffer<T>`, `IVulkanBufferInfo`) を定義し、GPUバッファ実装クラスがそれを実装することができます。
     *   利用者は、`IBuffer<T>` をこれらの固有インターフェースにキャストするか、プロバイダ固有のAPI（例えば `VulkanBufferProvider.GetVulkanSpecifics(IBuffer<T> buffer)`）を介してアクセスします。
+*   **`ToString()`:** GPUバッファの `ToString()` は、バッファタイプ、ネイティブハンドル（の一部）、サイズ、メモリプロパティなどの情報を含むようにします。
 
 ### 8.3. GPUバッファのオプションと設定
 
-*   **`ProviderOptionsBuilder` の拡張:** 各GPUプロバイダは、専用のオプションクラス（例: `VulkanProviderOptions`）と、それを設定するための `*ProviderOptionsBuilder` の拡張メソッドを提供します。
+*   **`ProviderOptionsBuilder` の拡張:** 各GPUプロバイダは、専用のオプションクラス（例: `VulkanProviderOptions`）と、それを設定するための `*ProviderOptionsBuilder` の拡張メソッドを提供します。（詳細は [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](Docs/DesignSpecs/02_Providers_And_Buffers.md) の設定APIを参照）
 *   **設定項目 (例):**
     *   使用する物理デバイスの選択基準。
     *   デフォルトのメモリタイプやバッファ用途。
@@ -40,11 +42,10 @@ GPUサポートは、特定のGPU API (Vulkan, OpenGL, DirectX, Metalなど) に
     *   キューファミリの共有モードなど、高度なAPI固有設定。
 *   **`Rent`/`CreateBuffer` 時のオプション:**
     *   `IBufferProvider.Rent<T>` や `CreateBuffer<T>` に、GPUバッファの用途（頂点、インデックス、ステージング等）やメモリの可視性（デバイスローカル、ホストビジブル）を指定するための、型安全なオプションオブジェクトを渡せるようにすることを検討します。これは、プロバイダ固有APIの設計で考慮されます。
-        *   例: `Rent<Vertex>(count, new GpuBufferUsageOptions(BufferUsage.VertexBuffer, MemoryVisibility.DeviceLocal))`
 
 ### 8.4. GPUリソースのプーリングとライフサイクル管理
 
-*   **プーリング戦略:** GPUバッファのプーリングも、コアライブラリの `IBufferPoolStrategy<TBuffer, TResource>` の仕組みを適用できます。
+*   **プーリング戦略:** GPUバッファのプーリングも、コアライブラリの `IBufferPoolStrategy<TBuffer, TResource>` の仕組みを適用できます。（詳細は [`Docs/DesignSpecs/03_Pooling.md`](Docs/DesignSpecs/03_Pooling.md) を参照）
     *   `TResource` は、GPUバッファのネイティブハンドルとメモリハンドルをラップした `SafeHandle` などになります。
     *   `IPoolableBufferAllocator<TResource>` のGPU版は、GPU APIを呼び出してバッファとメモリを確保/解放します。
 *   **ライフサイクルフック (`IBufferLifecycleHooks`):**
@@ -65,4 +66,16 @@ GPUサポートは、特定のGPU API (Vulkan, OpenGL, DirectX, Metalなど) に
 *   **責任範囲:** GPU操作の実行順序やリソースアクセスを制御するための同期プリミティブ（フェンス、セマフォ、イベント、バリアなど）の管理と使用は、主にGPUプロバイダを利用する側のアプリケーションコードの責任となります。
 *   **ライブラリの配慮:**
     *   ライブラリは同期オブジェクト自体は直接管理しませんが、設計上、外部の同期機構と連携しやすいように考慮します。
-    *   例えば、バッファの所有権が特定のGPUキューに移るような操作や、バッファが特定のコマンドバッファで使用中であることを示す状態管理などは、GPUプロバイダやGPUバッファクラスの拡張機能として実装される可能性があります。
+    *   例えば、バッファの所有権が特定のGPUキューに移るような操作や、バッファが特定のコマンドバッファで使用中であることを示す状態管理などは、GPUプロバイダやGPUバッファ実装クラスの拡張機能として実装される可能性があります。
+
+### 8.7. 将来の拡張 (GPUサポート関連)
+
+*   **対応GPU APIの拡充:** Vulkan, OpenGL に加え、DirectX, Metal といった他の主要なGPU APIへの対応を検討します。
+*   **GPUリソース特化プーリング戦略:**
+    *   GPUメモリの特性（メモリタイプヒープ、アライメント、デバイスごとのプール分離、遅延解放キューとの連携など）を高度に考慮したプーリング戦略を実装します。
+*   **高度なデータ転送ユーティリティ:**
+    *   CPU-GPU間の非同期データ転送、複数キュー間のリソース共有と転送、テクスチャや複雑なデータ構造の転送などを支援する高レベルなユーティリティの提供を検討します。
+*   **同期プリミティブとの連携強化:**
+    *   BitzBuffer が管理するGPUバッファと、外部のGPU同期プリミティブ（フェンス、セマフォ）との連携を容易にするためのAPIや情報提供を強化します。
+*   **コンピュートシェーダ連携の最適化:**
+    *   コンピュートシェーダでの利用に特化したバッファ確保オプションやアクセスパターンの最適化を検討します。
