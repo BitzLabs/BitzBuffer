@@ -1,0 +1,15 @@
+{
+    // ファイル保存時に自動でコードをフォーマットする
+    "editor.formatOnSave": true,
+    // C# ファイルのデフォルトフォーマッターを指定 (C# Dev Kit または C# 拡張機能)
+    "[csharp]": {
+        "editor.defaultFormatter": "ms-dotnettools.csdevkit" // または "ms-dotnettools.csharp"
+    },
+    // Git関連で無視したいフォルダ (ビルド生成物など) を非表示にする
+    "files.exclude": {
+        "**/.git": true,
+        "**/.DS_Store": true,
+        "**/bin": true,
+        "**/obj": true
+    }
+}
