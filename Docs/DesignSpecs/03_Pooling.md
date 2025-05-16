@@ -71,7 +71,7 @@
         ```
     *   **各フックの責務 (クリア処理との関連):** (内容は前回提示版と同様)
 *   **プロバイダオプション (`*ProviderOptionsBuilder`):**
-    *   プーリング戦略、バケット設定、アロケータ、ライフサイクルフックの実装、デフォルトのクリアポリシーなどを設定します。（詳細は [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](Docs/DesignSpecs/02_Providers_And_Buffers.md) を参照）
+    *   プーリング戦略、バケット設定、アロケータ、ライフサイクルフックの実装、デフォルトのクリアポリシーなどを設定します。（詳細は [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](02_Providers_And_Buffers.md) を参照）
 
 ### 6.2. バッファのクリア処理ポリシー
 
