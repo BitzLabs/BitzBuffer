@@ -30,7 +30,7 @@
     *   **論理長の切り詰め:** `IWritableBuffer<T>.Truncate(long length)` メソッドは、バッファの論理長を指定された長さに短縮します。
     *   **初期の論理長設定:** 既存データをラップしてバッファを生成する場合、その初期の論理長はバッファ生成時のオプション（`IBufferFactory` 経由）で設定されます。
 *   **読み取り専用スライス:** `IReadOnlyBuffer<T>.Slice` 操作は常に読み取り専用のバッファ (`IReadOnlyBuffer<T>`) を返します。スライスは元のバッファのデータを参照するビューであり、データを所有しません (`IsOwner == false`)。元のバッファが無効になるとスライスも無効になります。
-*   **スレッドセーフティ:** `IBufferProvider` から取得した個々の `IBuffer<T>` インスタンスのメソッドはスレッドセーフではありません。単一の `IBuffer<T>` インスタンスを複数のスレッドから同時に操作する場合は、呼び出し側で適切な同期を行う必要があります。プーリング機構自体はスレッドセーフに設計されます（詳細は [`Docs/DesignSpecs/03_Pooling.md`](Docs/DesignSpecs/03_Pooling.md) を参照）。
+*   **スレッドセーフティ:** `IBufferProvider` から取得した個々の `IBuffer<T>` インスタンスのメソッドはスレッドセーフではありません。単一の `IBuffer<T>` インスタンスを複数のスレッドから同時に操作する場合は、呼び出し側で適切な同期を行う必要があります。プーリング機構自体はスレッドセーフに設計されます（詳細は [`Docs/DesignSpecs/03_Pooling.md`](03_Pooling.md) を参照）。
 
 ### 3.2. インターフェース階層
 
@@ -230,6 +230,6 @@ public interface IBuffer<T> : IReadOnlyBuffer<T>, IWritableBuffer<T>
 *   **複雑なバッファ操作API**
 *   **`AttachSequence` / `TryAttachZeroCopy` の機能強化**
 *   **`TrySlice` パターンの導入**
-*   **Stream連携機能** (詳細は [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](Docs/DesignSpecs/02_Providers_And_Buffers.md) も参照)
+*   **Stream連携機能** (詳細は [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](02_Providers_And_Buffers.md) も参照)
 *   **`IWritableBuffer<T>.GetMemory()` の高度化**
 *   **非同期I/O向けバッファアクセスインターフェース** (`BitzBuffer.Pipelines` 関連)
