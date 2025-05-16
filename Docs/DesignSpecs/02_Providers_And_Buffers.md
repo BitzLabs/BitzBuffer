@@ -2,7 +2,7 @@
 
 このドキュメントは、バッファ管理ライブラリ「BitzBuffer」における具体的なバッファの**実装クラス** (`ManagedBuffer<T>`, `NativeBuffer<T>` など) と、これらのバッファを管理・提供するコンポーネント (`BufferManager`, `IBufferProvider`) について詳述します。
 
-コアインターフェースについては [`Docs/DesignSpecs/01_Core_Interfaces.md`](Docs/DesignSpecs/01_Core_Interfaces.md) を参照してください。
+コアインターフェースについては [`Docs/DesignSpecs/01_Core_Interfaces.md`](01_Core_Interfaces.md) を参照してください。
 
 ## 4. バッファの実装クラス
 
