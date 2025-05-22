@@ -126,13 +126,12 @@ using (var nativeBuffer = bufferManager.DefaultNativeProvider.Rent<float>(2048))
 
 このライブラリの詳細な設計思想、API定義、アーキテクチャについては、以下の設計仕様書を参照してください。
 
-*   **[`Docs/DesignSpecs/00_Overview.md`](Docs/DesignSpecs/00_Overview.md):** ライブラリ全体の目的、スコープ、アーキテクチャ概要。
-*   **[`Docs/DesignSpecs/01_Core_Interfaces.md`](Docs/DesignSpecs/01_Core_Interfaces.md):** 中核となるバッファインターフェース (`IBuffer<T>` など) の詳細。
-*   **[`Docs/DesignSpecs/02_Providers_And_Buffers.md`](Docs/DesignSpecs/02_Providers_And_Buffers.md):** 具体的なバッファ実装クラスとプロバイダ。
-*   **[`Docs/DesignSpecs/03_Pooling.md`](Docs/DesignSpecs/03_Pooling.md):** プーリング戦略とライフサイクル管理。
-*   **[`Docs/DesignSpecs/04_GPU_Support.md`](Docs/DesignSpecs/04_GPU_Support.md):** GPUサポートの拡張方針。
-*   **[`Docs/DesignSpecs/05_Error_Handling.md`](Docs/DesignSpecs/05_Error_Handling.md):** エラーハンドリングと例外戦略。
-*   *(旧 `06_Future_Extensions.md` の内容は各関連ファイルに統合されました)*
+*   **[`00_Overview.md`](./Docs/BitzBuffer/00_Overview.md):** ライブラリ全体の目的、スコープ、アーキテクチャ概要。
+*   **[`01_Core_Interfaces.md`](./Docs/BitzBuffer/01_Core_Interfaces.md):** 中核となるバッファインターフェース (`IBuffer<T>` など) の詳細。
+*   **[`02_Providers_And_Buffers.md`](./Docs/BitzBuffer/02_Providers_And_Buffers.md):** 具体的なバッファ実装クラスとプロバイダ。
+*   **[`03_Pooling.md`](./Docs/BitzBuffer/03_Pooling.md):** プーリング戦略とライフサイクル管理。
+*   **[`04_GPU_Support.md`](./Docs/BitzBuffer/04_GPU_Support.md):** GPUサポートの拡張方針。
+*   **[`05_Error_Handling.md`](./Docs/BitzBuffer/05_Error_Handling.md):** エラーハンドリングと例外戦略。
 
 ## 🛠️ 開発状況
 
