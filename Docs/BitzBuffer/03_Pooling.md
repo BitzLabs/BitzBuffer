@@ -59,7 +59,7 @@
 
         public interface IBufferLifecycleHooks<TBuffer, TItem>
             where TBuffer : class, IBuffer<TItem>
-            where TItem : struct // IBuffer<T> の T の制約
+            where TItem : struct
         {
             TBuffer OnCreate<TResource>(TResource underlyingResource, int resourceSizeInElements, object? poolContext = null);
             void OnRent(TBuffer buffer, BufferRentOptions options);
@@ -77,7 +77,7 @@
         *   `OnReturn`: 返却されるバッファのクリーンアップ。プロバイダ設定や `BufferReturnOptions.ClearBufferOnReturn` に基づき、ここでバッファのクリア処理を実行。再利用可否も判断。
         *   `OnDestroy`: バッファ破棄前の最終処理。
 *   **プロバイダオプション (`*ProviderOptionsBuilder`):**
-    *   プーリング戦略、バケット設定、アロケータ、ライフサイクルフックの実装、デフォルトのクリアポリシーなどを設定します。（詳細は [`Docs/BitzBuffer/02_Providers_And_Buffers.md`](Docs/BitzBuffer/02_Providers_And_Buffers.md) を参照）
+    *   プーリング戦略、バケット設定、アロケータ、ライフサイクルフックの実装、デフォルトのクリアポリシーなどを設定します。（詳細は [`02_Providers_And_Buffers.md`](02_Providers_And_Buffers.md) を参照）
 
 ### 6.2. バッファのクリア処理ポリシー
 

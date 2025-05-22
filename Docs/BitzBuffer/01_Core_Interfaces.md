@@ -38,12 +38,23 @@
 
 ### 3.2. インターフェース階層
 
-（変更なし - 前回の内容を維持）
-*   `IBufferState`
-*   `IOwnedResource` : `IBufferState`, `IDisposable`
-*   `IReadOnlyBuffer<T>` : `IOwnedResource`
-*   `IWritableBuffer<T>` : `IBufferState`
-*   `IBuffer<T>` : `IReadOnlyBuffer<T>`, `IWritableBuffer<T>`
+以下の主要なインターフェースを定義します。これらは継承関係を通じて関連付けられます。
+
+*   **`IBufferState`**:
+    *   プロパティ: `IsOwner`, `IsDisposed`
+    *   役割: バッファの基本的な状態を示す。
+*   **`IOwnedResource`**:
+    *   継承: `IBufferState`, `IDisposable`
+    *   役割: 状態管理に加え、リソース解放の責任を持つ。
+*   **`IReadOnlyBuffer<T>`**:
+    *   継承: `IOwnedResource`
+    *   役割: 読み取り専用のデータアクセスとスライス機能を提供。
+*   **`IWritableBuffer<T>`**:
+    *   継承: `IBufferState`
+    *   役割: 書き込み専用の操作を提供 (`IDisposable` は含まない)。
+*   **`IBuffer<T>`**:
+    *   継承: `IReadOnlyBuffer<T>`, `IWritableBuffer<T>`
+    *   役割: 読み書き可能な完全なバッファ表現。ライブラリにおける最も完全なバッファインターフェース。
 
 ### 3.3. インターフェース定義
 
@@ -123,15 +134,36 @@ public interface IReadOnlyBuffer<T> : IOwnedResource
     /// バッファ全体が単一の連続したメモリセグメントで構成され、かつデータが存在する場合 (Length > 0)、
     /// その書き込み済みデータ領域の ReadOnlySpan<T> を取得します。
     /// </summary>
+    /// <param name="span">成功した場合、データ領域を指す ReadOnlySpan<T>。失敗した場合は default。</param>
+    /// <returns>取得に成功した場合は true、それ以外の場合は false。</returns>
+    /// <remarks>
+    /// IsOwner が false または IsDisposed が true の場合、例外をスローするか false を返すことが推奨されます。
+    /// </remarks>
     bool TryGetSingleSpan(out ReadOnlySpan<T> span);
 
     /// <summary>
     /// バッファ全体が単一の連続したメモリセグメントで構成され、かつデータが存在する場合 (Length > 0)、
     /// その書き込み済みデータ領域の ReadOnlyMemory<T> を取得します。
     /// </summary>
+    /// <param name="memory">成功した場合、データ領域を指す ReadOnlyMemory<T>。失敗した場合は default。</param>
+    /// <returns>取得に成功した場合は true、それ以外の場合は false。</returns>
+    /// <remarks>
+    /// IsOwner が false または IsDisposed が true の場合、例外をスローするか false を返すことが推奨されます。
+    /// </remarks>
     bool TryGetSingleMemory(out ReadOnlyMemory<T> memory);
 
+    /// <summary>
+    /// バッファの指定された範囲を表す新しい読み取り専用バッファ (スライス) を作成します。
+    /// 返されるスライスは IsOwner が false です。
+    /// IsOwner が false または IsDisposed が true の場合、例外 (InvalidOperationException または ObjectDisposedException) をスローすることがあります。
+    /// </summary>
     IReadOnlyBuffer<T> Slice(long start, long length);
+
+    /// <summary>
+    /// バッファの指定された開始位置から末尾までを表す新しい読み取り専用バッファ (スライス) を作成します。
+    /// 返されるスライスは IsOwner が false です。
+    /// IsOwner が false または IsDisposed が true の場合、例外 (InvalidOperationException または ObjectDisposedException) をスローすることがあります。
+    /// </summary>
     IReadOnlyBuffer<T> Slice(long start);
 }
 
@@ -147,16 +179,32 @@ public enum AttachmentResult
 public interface IWritableBuffer<T> : IBufferState
     where T : struct
 {
+    /// <summary>
+    /// バッファの現在の論理的な末尾 (Length の位置) 以降に、
+    /// 少なくとも sizeHint 要素分の書き込み可能な連続メモリ領域を要求します。
+    /// 返される Memory<T> の実際の長さは、バッファの実装や空き容量に依存するため、
+    /// Memory<T>.Length を確認する必要があります。
+    /// IsOwner が false または IsDisposed が true の場合、例外をスローします。
+    /// </summary>
     Memory<T> GetMemory(int sizeHint = 0);
+
+    /// <summary>
+    /// GetMemory で取得した領域に count 要素分のデータを書き込んだことをバッファに通知し、
+    /// バッファの論理的な書き込み済み長さ (IReadOnlyBuffer<T>.Length プロパティ) を count だけ進めます。
+    /// IsOwner が false または IsDisposed が true の場合、例外をスローします。
+    /// count が負であるか、進めるとバッファの物理キャパシティを超える場合は ArgumentOutOfRangeException をスローします。
+    /// </summary>
     void Advance(int count);
 
     // --- データ書き込みメソッド ---
+    // IsOwner が false または IsDisposed が true の場合、各Writeメソッドは例外をスローします。
     void Write(ReadOnlySpan<T> source);
     void Write(ReadOnlyMemory<T> source);
     void Write(T value);
     void Write(ReadOnlySequence<T> source); // ReadOnlySequence<T> source の内容は常にコピーされて書き込まれます。
 
     // --- データアタッチメソッド ---
+    // IsOwner が false または IsDisposed が true の場合、各アタッチメソッドは例外をスローします。
     AttachmentResult AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true);
 
     /// <summary>
@@ -166,11 +214,23 @@ public interface IWritableBuffer<T> : IBufferState
     bool TryAttachZeroCopy(IEnumerable<BitzBufferSequenceSegment<T>> segmentsToAttach);
 
     // --- その他の書き込み関連メソッド ---
+    // IsOwner が false または IsDisposed が true の場合、各メソッドは例外をスローします。
     void Prepend(ReadOnlySpan<T> source);
     void Prepend(ReadOnlyMemory<T> source);
     void Prepend(ReadOnlySequence<T> source); // データはコピーされます
 
+    /// <summary>
+    /// バッファの論理的な書き込み済み長さ (IReadOnlyBuffer<T>.Length) を0にリセットします。
+    /// 確保されているメモリ領域の内容もクリアされるかどうかは、クリアポリシーに依存します。
+    /// IsOwner が false または IsDisposed が true の場合、例外をスローします。
+    /// </summary>
     void Clear();
+
+    /// <summary>
+    /// バッファの論理的な書き込み済み長さ (IReadOnlyBuffer<T>.Length) を指定された長さに切り詰めます。
+    /// length が現在の Length より大きい場合、または負の場合は ArgumentOutOfRangeException をスローします。
+    /// IsOwner が false または IsDisposed が true の場合、例外をスローします。
+    /// </summary>
     void Truncate(long length);
 }
 
@@ -178,7 +238,13 @@ public interface IWritableBuffer<T> : IBufferState
 public interface IBuffer<T> : IReadOnlyBuffer<T>, IWritableBuffer<T>
     where T : struct
 {
-    // 将来的な拡張ポイント。
+     // IBufferState のメンバー (IsOwner, IsDisposed) は両方の親インターフェースから継承されるが、
+    // 実装は単一の underlying state を持つ。
+    // IDisposable は IReadOnlyBuffer<T> (経由で IOwnedResource) から継承。
+
+    // 実装クラスは、IsOwner および IsDisposed の状態に基づいて、
+    // 読み書きメソッドが呼び出された際に適切に例外をスローする必要があります。
+    // (例外の詳細は 05_Error_Handling.md を参照)
 }
 
 // --- BitzBufferSequenceSegment<T> の概念定義 ---
@@ -204,6 +270,6 @@ public class BitzBufferSequenceSegment<T> : ReadOnlySequenceSegment<T> where T :
 *   **複雑なバッファ操作API**
 *   **`AttachSequence` / `TryAttachZeroCopy` の機能強化** (特に `ReadOnlySequence<T>` からのゼロコピーサポートの向上)
 *   **`TrySlice` パターンの導入**
-*   **Stream連携機能** (詳細は [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](Docs/DesignSpecs/02_Providers_And_Buffers.md) も参照)
+*   **Stream連携機能** (詳細は [`02_Providers_And_Buffers.md`](02_Providers_And_Buffers.md) も参照)
 *   **`IWritableBuffer<T>.GetMemory()` の高度化**
 *   **非同期I/O向けバッファアクセスインターフェース** (`BitzBuffer.Pipelines` 関連)
