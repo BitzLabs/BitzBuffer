@@ -2,7 +2,7 @@
 
 このドキュメントは、バッファ管理ライブラリ「BitzBuffer」における具体的なバッファの**実装クラス** (`ManagedBuffer<T>`, `NativeBuffer<T>` など) と、これらのバッファを管理・提供するコンポーネント (`BufferManager`, `IBufferProvider`) について詳述します。
 
-コアインターフェースについては [`Docs/DesignSpecs/01_Core_Interfaces.md`](01_Core_Interfaces.md) を参照してください。
+コアインターフェースについては [`Docs/BitzBuffer/01_Core_Interfaces.md`](Docs/BitzBuffer/01_Core_Interfaces.md) を参照してください。
 
 ## 4. バッファの実装クラス
 
@@ -24,11 +24,13 @@
     *   `IBufferPool<ManagedBuffer<T>>? _pool`: プールへの参照（もしプール管理下なら）。
 *   **ライフサイクル:** `IOwnedResource` を実装。`Dispose()` でプール返却または解放。
 *   **書き込み (`IWritableBuffer<T>` 実装):**
-    *   `GetMemory(sizeHint)`: 固定長。現在の空き容量を超える要求は例外。
-    *   `Advance(count)`: `_length` を増加。
-    *   `Write(ReadOnlySequence<T> source)`: コピー。
-    *   `AttachSequence(sequence, attemptZeroCopy)`: 常にコピー (`AttachmentResult.Copied`)。
-    *   `TryAttachZeroCopy(sequence)`: 常に `false`。
+    *   `GetMemory(sizeHint)`: 内部配列 `_array` の現在の `_length` 以降の空き容量の範囲内で、`sizeHint` を満たす `Memory<T>` を返します。空き容量が不足する場合や `sizeHint` が大きすぎる場合は例外をスロー。**配列の拡張は行いません。**
+    *   `Advance(count)`: `_length` を増加。配列の物理長を超えないように検証。
+    *   `Write(ReadOnlySequence<T> source)`: `source` の内容を内部配列にコピー。
+    *   `AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true)`: `attemptZeroCopy` の値に関わらず、常に `sequenceToAttach` の内容を内部配列にコピーし、`AttachmentResult.Copied` を返します (ゼロコピーアタッチは非サポート)。
+    *   `TryAttachZeroCopy(IEnumerable<BitzBufferSequenceSegment<T>> segmentsToAttach)`: 常に `false` を返します (ゼロコピーアタッチは非サポート)。
+*   **読み取り (`IReadOnlyBuffer<T>` 実装):**
+    *   `AsAttachableSegments()`: 自身の内容を表す単一の `BitzBufferSequenceSegment<T>` を含むシーケンスを返します。`SegmentSpecificOwner` は自身または内部配列のラッパー。
 *   **`ToString()` (例):** `"ManagedBuffer<Byte>[Length=128, Capacity=1024, Owner=True, Disposed=False, Pooled]"`
 
 #### 4.1.2. `SegmentedManagedBuffer<T>` (非連続・可変長) `where T : struct`
@@ -42,8 +44,10 @@
     *   `GetMemory(sizeHint)`: 最後のセグメントの空きを利用、不足時は新規セグメントを `new T[]` (ラップして `Owner` 設定) で確保。
     *   `Advance(count)`: `_totalLength` を増加。
     *   `Write(ReadOnlySequence<T> source)`: コピー。
-    *   `AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true)`: `attemptZeroCopy` なら `TryAttachZeroCopy` を試行、失敗ならコピー。結果を `AttachmentResult` で返す。
-    *   `TryAttachZeroCopy(ReadOnlySequence<T> sequenceToAttach)`: 条件（ライブラリ管理下の `IBuffer<T>` など）を満たせば所有権奪取して `true`、さもなくば `false`。
+    *   `AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true)`: `attemptZeroCopy` なら `TryAttachZeroCopy(sequenceToAttach.AsAttachableSegments())` (仮の呼び出し。実際は `sequenceToAttach` が `IBuffer<T>` ならその `AsAttachableSegments()` を使うなどの工夫が必要) を試行、失敗ならコピー。結果を `AttachmentResult` で返す。
+    *   `TryAttachZeroCopy(IEnumerable<BitzBufferSequenceSegment<T>> segmentsToAttach)`: 条件（ライブラリ管理下の `IBuffer<T>` など）を満たせば所有権奪取して `true`、さもなくば `false`。
+*   **読み取り (`IReadOnlyBuffer<T>` 実装):**
+    *   `AsAttachableSegments()`: 内部の各 `SegmentEntry` から `BitzBufferSequenceSegment<T>` を生成し、それらを連結したシーケンスとして返します。
 *   **`ToString()` (例):** `"SegmentedManagedBuffer<Int32>[Length=2048, Segments=2, Owner=True, Disposed=False]"`
 
 ### 4.2. ネイティブバッファ (`where T : unmanaged`)
@@ -54,7 +58,7 @@
 
 単一の連続したアンマネージドメモリブロックをラップする、固定長のバッファの**実装クラス**です。
 
-*   **主な用途:** ネイティブAPI連携、SIMD演算用。アライメントはプロバイダオプションで指定。
+*   **主な用途:** ネイティブAPI連携、SIMD演算用。アライメントはプロバイダオプションでデフォルト値を指定できます。
 *   **内部構造 (概念):** `SafeHandle _nativeMemoryHandle`, `nuint _allocatedNBytes`, `MemoryManager<T>? _memoryManager` など。
 *   **ライフサイクル:** `IOwnedResource` を実装。`Dispose()` で `_nativeMemoryHandle.Dispose()`。
 *   **書き込み (`IWritableBuffer<T>` 実装):**
@@ -62,7 +66,9 @@
     *   `Advance(count)`: `_length` を増加。
     *   `Write(ReadOnlySequence<T> source)`: コピー。
     *   `AttachSequence(sequence, attemptZeroCopy)`: 常にコピー (`AttachmentResult.Copied`)。
-    *   `TryAttachZeroCopy(sequence)`: 常に `false`。
+    *   `TryAttachZeroCopy(segmentsToAttach)`: 常に `false`。
+*   **読み取り (`IReadOnlyBuffer<T>` 実装):**
+    *   `AsAttachableSegments()`: 自身の内容を表す単一の `BitzBufferSequenceSegment<T>` を含むシーケンスを返します。`SegmentSpecificOwner` は内部の `SafeHandle`。
 *   **`ToString()` (例):** `"NativeBuffer<Single>[Length=512, Capacity=2048bytes, Alignment=32, Owner=True, Disposed=False]"`
 
 #### 4.2.2. `SegmentedNativeBuffer<T>` (非連続・可変長) `where T : unmanaged`
@@ -75,8 +81,10 @@
 *   **書き込み (`IWritableBuffer<T>` 実装):**
     *   `GetMemory(sizeHint)`: 最後のセグメントの空きを利用、不足時は新規ネイティブセグメントを確保（アライメントはプロバイダオプションに従う）。
     *   `Write(ReadOnlySequence<T> source)`: コピー。
-    *   `AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true)`: `attemptZeroCopy` なら `TryAttachZeroCopy` を試行、失敗ならコピー。結果を `AttachmentResult` で返す。
-    *   `TryAttachZeroCopy(ReadOnlySequence<T> sequenceToAttach)`: 条件を満たせば所有権奪取して `true`、さもなくば `false`。
+    *   `AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true)`: `attemptZeroCopy` なら `TryAttachZeroCopy` を試行、失敗ならコピー。
+    *   `TryAttachZeroCopy(IEnumerable<BitzBufferSequenceSegment<T>> segmentsToAttach)`: 条件を満たせば所有権奪取して `true`、さもなくば `false`。
+*   **読み取り (`IReadOnlyBuffer<T>` 実装):**
+    *   `AsAttachableSegments()`: 内部の各 `NativeSegmentEntry` から `BitzBufferSequenceSegment<T>` を生成し、それらを連結したシーケンスとして返します。
 *   **`ToString()` (例):** `"SegmentedNativeBuffer<Double>[Length=10000, Segments=5, Owner=True, Disposed=False]"`
 
 ### 4.3. スライス実装
@@ -88,6 +96,8 @@
 *   **役割:** 元の `IBuffer<T>` の一部に対する読み取り専用ビュー。ゼロコピー。
 *   **内部構造 (概念):** `IBuffer<T> _sourceBuffer`, `long _offset`, `long _length` など。
 *   **ライフサイクル:** `IOwnedResource` を実装 (`IsOwner` は `false`)。元のバッファが無効になると自身も無効。
+*   **読み取り (`IReadOnlyBuffer<T>` 実装):**
+    *   `AsAttachableSegments()`: 元の `_sourceBuffer.AsAttachableSegments()` の結果を適切にスライスして返します。各セグメントの所有者情報は元のバッファのものを引き継ぎます。
 *   **`ToString()` (例):** `"SlicedBufferView<Int32>[Length=50, Owner=False, Disposed=False, SourceType=ManagedBuffer<Int32>, Offset=100]"`
 
 ## 5. バッファの確保と設定
@@ -121,7 +131,7 @@
         IProviderOptionsBuilderBase UseDefaultSharedPool();
         IProviderOptionsBuilderBase ConfigureDedicatedPooling(Action<DedicatedPoolConfigurator> configurePool);
         IProviderOptionsBuilderBase UseNoPooling();
-        IProviderOptionsBuilderBase SetLifecycleHooks<TItem, TBuffer>(IBufferLifecycleHooks<TBuffer, TItem> hooks) // シグネチャ修正
+        IProviderOptionsBuilderBase SetLifecycleHooks<TItem, TBuffer>(IBufferLifecycleHooks<TBuffer, TItem> hooks)
             where TBuffer : class, IBuffer<TItem>
             where TItem : struct;
     }
@@ -137,7 +147,7 @@
 特定のメモリ種別のバッファを生成・管理。`IDisposable` を実装。
 
 *   **役割:** `CreateBuffer`, `Rent`。プーリング戦略、ライフサイクルフック、バッファファクトリと連携。
-    *   **`IBufferFactory<TItem, TBuffer, TOptions>` の利用:** `IBufferProvider` は、`TBuffer Create(TOptions options)` を持つ `IBufferFactory` を内部的に利用して `IBuffer<TItem>` の実装クラスインスタンスを生成。
+    *   **`IBufferFactory<TItem, TBuffer, TOptions>` の利用:** `IBufferProvider` は、`TBuffer Create(TOptions options)` を持つ `IBufferFactory` を内部的に利用して `IBuffer<TItem>` の実装クラスインスタンスを生成。`TOptions` は生成時情報を含む。具体的な `TOptions` の派生クラス（例: `ManagedBufferCreationOptions`）の詳細は実装時に定義。
 *   **API (主要メソッド):**
     *   `IBuffer<T> Rent<T>(int minimumLength = 0) where T : struct`
     *   `bool TryRent<T>(int minimumLength, [MaybeNullWhen(false)] out IBuffer<T> buffer) where T : struct`
@@ -146,7 +156,7 @@
     *   `OverallPoolStatistics GetPoolingOverallStatistics()`
     *   `IReadOnlyDictionary<string, BucketStatistics> GetPoolingBucketStatistics()`
     *   `void Dispose()`
-*   **プロバイダ固有オプション:** 高度な設定（アライメント個別指定など）はプロバイダオプションでのデフォルト設定を基本とし、個別指定APIは設けない。特殊ケースは拡張メソッド等で対応。
+*   **プロバイダ固有オプション:** アライメント等の設定はプロバイダオプションでのデフォルト指定を基本とし、`Rent`/`CreateBuffer` 時の個別指定APIは設けない。
 
 ### 5.3. 将来の拡張 (プロバイダとバッファ実装関連)
 
@@ -156,3 +166,5 @@
 *   **特定用途向けバッファ実装の追加:** リングバッファ、ギャップバッファなど。
 *   **`ToString()` のさらなる充実:** デバッグビルド時の内容プレビューなど。
 *   **メモリリーク検出支援:** ファイナライザ警告強化、追跡機能など。
+*   **`IBufferFactory` の高度なカスタマイズ:** 利用者がカスタムファクトリをDIコンテナ経由で注入する機能の明確化。
+*   **`IBufferManagerOptions` / `ProviderOptionsBuilder` のAPI詳細化:** 各種設定オプション (`SharedPoolConfigurator`, `DedicatedPoolConfigurator`, 各種 `TOptions` for `IBufferFactory`) の具体的なプロパティ定義。
