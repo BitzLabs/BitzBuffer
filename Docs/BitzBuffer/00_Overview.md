@@ -20,29 +20,28 @@
 このライブラリは、以下の主要なコンポーネントで構成されます。
 
 *   **`BufferManager`**: アプリケーション全体で `IBufferProvider` を登録・管理し、利用者に提供します。Fluent APIによる設定が可能です。デフォルトプロバイダ（マネージド/アンマネージド）を内包します。
-    *   詳細は [プロバイダと実装クラス (`Docs/DesignSpecs/02_Providers_And_Buffers.md`)](02_Providers_And_Buffers.md) を参照してください。
-*   **`IBufferProvider`**: 特定の技術領域（マネージド、アンマネージド、GPU等）のバッファに関する操作（プールからの貸し出し、直接生成）を提供します。プロバイダ固有の設定を持ちます。
-    *   詳細は [プロバイダと実装クラス (`Docs/DesignSpecs/02_Providers_And_Buffers.md`)](02_Providers_And_Buffers.md) を参照してください。
+    *   詳細は [プロバイダと実装クラス (`02_Providers_And_Buffers.md`)](./02_Providers_And_Buffers.md) を参照してください。
+*   **`IBufferProvider`**: 特定の技術領域（マネージド、アンマネージド、GPU等）のバッファに関する操作（プールからの貸し出し、直接生成）を提供します。プロバイダ固有の設定を持ちます。    
+    *   詳細は [プロバイダと実装クラス (`02_Providers_And_Buffers.md`)](./02_Providers_And_Buffers.md) を参照してください。
 *   **`IBufferFactory<TItem, TBuffer, TOptions>`**: `IBufferProvider` の内部で使用され、実際にバッファオブジェクト (`IBuffer<TItem>` の実装クラス) をインスタンス化します。基本的な方針は、`Create(TOptions options)` メソッドを持ち、`TOptions` で生成に必要な全情報を受け取ります。
-    *   詳細は [プロバイダと実装クラス (`Docs/DesignSpecs/02_Providers_And_Buffers.md`)](02_Providers_And_Buffers.md) での `IBufferProvider` との連携部分を参照してください。
+    *   詳細は [プロバイダと実装クラス (`02_Providers_And_Buffers.md`)](./02_Providers_And_Buffers.md) での `IBufferProvider` との連携部分を参照してください。
 *   **`IBufferPool<TBuffer>` / `IBufferPoolStrategy<TBuffer, TResource, TItem>`**: バッファのプーリング機構です。戦略はカスタマイズ可能です。`ArrayPool<T>` のコンセプトを参考に、独自実装を行います。
-    *   詳細は [プーリング (`Docs/DesignSpecs/03_Pooling.md`)](03_Pooling.md) を参照してください。
+    *   詳細は [プーリング (`03_Pooling.md`)](./03_Pooling.md) を参照してください。
 *   **`IBufferLifecycleHooks<TBuffer, TItem>`**: プールされるバッファのライフサイクルイベント（取得時、返却時、クリア処理など）を処理します。
-    *   詳細は [プーリング (`Docs/DesignSpecs/03_Pooling.md`)](03_Pooling.md) を参照してください。
+    *   詳細は [プーリング (`03_Pooling.md`)](./03_Pooling.md) を参照してください。
 *   **`IBuffer<T>` (および関連インターフェース)**: ライブラリの中心となるバッファインターフェースです。非連続メモリ、所有権管理、ライフサイクルを考慮して設計されています。
-    *   詳細は [コアインターフェース (`Docs/DesignSpecs/01_Core_Interfaces.md`)](01_Core_Interfaces.md) を参照してください。
+    *   詳細は [コアインターフェース (`01_Core_Interfaces.md`)](./01_Core_Interfaces.md) を参照してください。
 
 ## 3. ドキュメント構成
 
 この設計仕様書は、以下のファイルに分割されています。(パスはリポジトリルートからの相対パスを想定)
 
-*   **[`Docs/DesignSpecs/00_Overview.md`](00_Overview.md) (このファイル):** ライブラリ全体の目的、スコープ、アーキテクチャ概要、およびこのドキュメント構成を示します。
-*   **[`Docs/DesignSpecs/01_Core_Interfaces.md`](01_Core_Interfaces.md):** `IBufferState`, `IOwnedResource`, `IReadOnlyBuffer<T>`, `IWritableBuffer<T>`, `IBuffer<T>` など、中核となるインターフェースの定義、設計思想、セマンティクスについて詳述します。
-*   **[`Docs/DesignSpecs/02_Providers_And_Buffers.md`](02_Providers_And_Buffers.md):** `ManagedBuffer<T>`, `NativeBuffer<T>` などの実装クラスの実装詳細と、`BufferManager`, `IBufferProvider` を介したバッファの取得・設定方法について記述します。
-*   **[`Docs/DesignSpecs/03_Pooling.md`](03_Pooling.md):** バッファプーリング戦略、ライフサイクルフック、クリア処理ポリシーなど、メモリ効率化のための機構について詳述します。
-*   **[`Docs/DesignSpecs/04_GPU_Support.md`](04_GPU_Support.md):** 拡張アーキテクチャを通じたGPUバッファサポートの実現方針について記述します。
-*   **[`Docs/DesignSpecs/05_Error_Handling.md`](05_Error_Handling.md):** ライブラリ全体のエラーハンドリング戦略、使用する例外の種類（標準・カスタム）、`Try...` パターンの適用箇所について記述します。
-*   *(旧 `06_Future_Extensions.md` は内容を各章に振り分け、削除されました)*
+*   **[`00_Overview.md`](./00_Overview.md) (このファイル):** ライブラリ全体の目的、スコープ、アーキテクチャ概要、およびこのドキュメント構成を示します。
+*   **[`01_Core_Interfaces.md`](./01_Core_Interfaces.md):** `IBufferState`, `IOwnedResource`, `IReadOnlyBuffer<T>`, `IWritableBuffer<T>`, `IBuffer<T>` など、中核となるインターフェースの定義、設計思想、セマンティクスについて詳述します。
+*   **[`02_Providers_And_Buffers.md`](./02_Providers_And_Buffers.md):** `ManagedBuffer<T>`, `NativeBuffer<T>` などの実装クラスの実装詳細と、`BufferManager`, `IBufferProvider` を介したバッファの取得・設定方法について記述します。
+*   **[`03_Pooling.md`](./03_Pooling.md):** バッファプーリング戦略、ライフサイクルフック、クリア処理ポリシーなど、メモリ効率化のための機構について詳述します。
+*   **[`04_GPU_Support.md`](./04_GPU_Support.md):** 拡張アーキテクチャを通じたGPUバッファサポートの実現方針について記述します。
+*   **[`05_Error_Handling.md`](./05_Error_Handling.md):** ライブラリ全体のエラーハンドリング戦略、使用する例外の種類（標準・カスタム）、`Try...` パターンの適用箇所について記述します。
 
 ## 4. 将来のライブラリ全体の拡張方針
 
