@@ -13,8 +13,8 @@
 *   **`IPoolableBufferAllocator<TResource>`:**
     *   **役割:** 特定のメモリリソース (`TResource`) を実際に確保および解放する責務を持ちます。
     *   **API (例):**
-        *   `TResource Allocate(int sizeInBytesOrElements, nuint alignment = 0)`
-        *   `void Free(TResource resource)`
+        *   `TResource Allocate(int sizeInBytesOrElements, nuint alignment = 0)`: 指定されたサイズ（およびオプションでアライメント）でリソースを確保します。
+        *   `void Free(TResource resource)`: 確保されたリソースを解放します。
 *   **`IBucket<TResource>`:**
     *   **役割:** 特定のサイズ（またはサイズ範囲）の `TResource` を管理する個々のプール（バケット）。
     *   **API (例):**
@@ -27,8 +27,8 @@
     *   **`TResource`:** `TBuffer` が内部的に使用する基盤リソース型 (例: `TItem[]`, `SafeHandle`)。
     *   **`TItem`:** バッファ内の要素型 (`struct` 制約)。
     *   **主な挙動:**
-        *   **`RentBuffer(minimumSizeInElements)`:** 要求サイズ以上の最小バケットから貸し出し。バケットが空なら新規アロケートを試みます。上限設定により失敗する可能性もあります (詳細は [`./05_Error_Handling.md`](./05_Error_Handling.md) 参照)。
-        *   **`ReturnBuffer(TBuffer buffer)`:** バッファを適切なバケットに返却。バケットが最大保持数に達していればリソースを破棄します。
+        *   **`RentBuffer(minimumSizeInElements)`:** 要求された `minimumSizeInElements` 以上の、最も小さい適切なサイズのバケットを選択します。選択されたバケットからリソースの貸し出しを試み (`IBucket.TryRent`)。バケットから貸し出しに成功した場合（プールヒット）、そのリソースを使用します。バケットが空であるか、適切なサイズのバケットが存在しない場合（プールミス）、`IPoolableBufferAllocator.Allocate` を使用して新しいリソースを確保します。この際、プロバイダのオプションでプール全体またはプロバイダ単位でのリソース上限が設定されており、その上限に達している場合は、新規アロケーションが失敗し、結果として `PoolExhaustedException` がスローされることがあります (詳細は [`./05_Error_Handling.md`](./05_Error_Handling.md) 参照)。確保またはレンタルした `TResource` から `TBuffer` インスタンスを生成（`IBufferLifecycleHooks.OnCreate` 経由）し、`IBufferLifecycleHooks.OnRent` を呼び出して状態をリセットした後、利用者に返します。
+        *   **`ReturnBuffer(TBuffer buffer)`:** `IBufferLifecycleHooks.OnReturn` を呼び出し、バッファのクリーンアップと再利用可否を判断します。`OnReturn` が `true` を返した場合、バッファから基盤となる `TResource` を取り出し、適切なバケットに返却します (`IBucket.Return`)。もし返却先のバケットが設定された最大保持数 (`maxItems`) に達している場合、返却された `TResource` はプールされずに `IPoolableBufferAllocator.Free` を介して破棄されます。`OnReturn` が `false` を返した場合、そのバッファは再利用不適とみなされ、`IBufferLifecycleHooks.OnDestroy` が呼び出された後、`buffer.Dispose()` (最終的に `TResource` の `Free`) が行われます。
     *   **API (例):**
         *   `TBuffer RentBuffer(int minimumSizeInElements)`
         *   `void ReturnBuffer(TBuffer buffer)`
@@ -66,9 +66,9 @@
             bool OnReturn(TBuffer buffer, BufferReturnOptions options); // trueなら再利用, falseなら破棄
             void OnDestroy(TBuffer buffer);
         }
-        public interface IResettableBuffer
+        public interface IResettableBuffer // IBuffer の実装クラスがこれを実装することを推奨
         {
-            void ResetForReuse(int capacityHint);
+            void ResetForReuse(int capacityHint); // 論理長を0に、IsOwner=true, IsDisposed=false などに設定
         }
         ```
     *   **各フックの責務 (クリア処理との関連):**
@@ -81,11 +81,28 @@
 
 ### 6.2. バッファのクリア処理ポリシー
 
-（内容は変更なし）
+バッファ内の以前のデータが漏洩することを防ぐため、またはバッファを初期状態にリセットするためにクリア処理が必要となる場合があります。
+
+*   **クリアタイミングの選択肢と実行:**
+    *   **返却時クリア (OnReturn):** バッファがプールに返却される際、`IBufferLifecycleHooks.OnReturn` フック内でクリア処理が実行されます。
+    *   **レンタル時クリア (OnRent):** バッファがプールから貸し出される際、`IBufferLifecycleHooks.OnRent` フック内でクリア処理が実行されます。
+    *   **クリアしない (NoClear):** 自動的なクリアは行われず、パフォーマンスを優先。利用者が `IBuffer<T>.Clear()` を呼び出すか、データの性質上クリアが不要な場合。
+*   **設定方法:**
+    *   プロバイダの設定オプション (`*ProviderOptionsBuilder`) で、デフォルトのクリアポリシー (`BufferClearOption` enum: `NoClear`, `ClearOnReturn`, `ClearOnRent`) を指定します。
+    *   この設定は `IBufferLifecycleHooks` の `OnReturn` および `OnRent` フックメソッドに渡されるオプション（またはフック実装が直接設定を参照）を通じて、実際のクリア処理の実行判断に使用されます。
+*   **デフォルトポリシー:** 特に指定がない場合は `BufferClearOption.NoClear`（クリアしない）をデフォルトとし、パフォーマンスを優先します。
+*   **クリアAPI:**
+    *   マネージド配列: `Array.Clear()` または `Span<T>.Clear()`。
+    *   ネイティブメモリ: `NativeMemory.Clear()` または `new Span<byte>(ptr, size).Clear()`。
 
 ### 6.3. デフォルトのプーリング戦略
 
-（内容は変更なし）
+ライブラリは、マネージドメモリ (`T[]`) およびネイティブメモリ (`SafeHandle`) 向けの汎用的なデフォルト `IBufferPoolStrategy` 実装を提供します。これらは以下の特徴を持ちます。
+
+*   **サイズ別バケット:** 要求サイズ以上の最小バケットから貸し出し。
+*   **スレッドセーフ:** `ConcurrentQueue<TResource>` などを利用。
+*   **最大保持数の制限:** オプションで設定可能。上限超過時は返却リソースを破棄。
+*   各バケットは `BucketStatistics` のためのカウンターを保持します。
 
 ### 6.4. プーリング統計情報API
 
@@ -95,18 +112,19 @@
     ```csharp
     public readonly struct BucketStatistics
     {
-        public string Identifier { get; }
+        public string Identifier { get; } // 例: "ManagedArray<Byte>[4096]"
         public int ResourceSize { get; }
         public int CurrentFreeCount { get; }
         public int CurrentRentedCount { get; }
         public int MaxCapacity { get; }
         public long TotalRentRequests { get; }
         public long TotalRentHits { get; }
-        public long TotalMissesAndAllocations { get; }
+        public long TotalMissesAndAllocations { get; } // プールミスで新規確保
         public long TotalReturns { get; }
-        public long TotalReturnsDiscardedOnLimit { get; }
-        public long TotalItemsExplicitlyFreed { get; }
+        public long TotalReturnsDiscardedOnLimit { get; } // 容量制限で破棄
+        public long TotalItemsExplicitlyFreed { get; } // Scavengingなどで破棄
 
+        // コンストラクタと ToString() は実装クラスで定義
         public BucketStatistics(string identifier, int resourceSize, int currentFreeCount, int currentRentedCount, int maxCapacity,
                                  long totalRentRequests, long totalRentHits, long totalMissesAndAllocations,
                                  long totalReturns, long totalReturnsDiscardedOnLimit, long totalItemsExplicitlyFreed);
@@ -122,8 +140,13 @@
         public int TotalCurrentRentedCount { get; }
         public int TotalItemsManaged => TotalCurrentFreeCount + TotalCurrentRentedCount;
         public long GrandTotalRentRequests { get; }
-        // ... (BucketStatistics の各 Total/GrandTotal 版) ...
+        public long GrandTotalRentHits { get; }
+        public long GrandTotalAllocations { get; }
+        public long GrandTotalReturns { get; }
+        public long GrandTotalReturnsDiscardedOnLimit { get; }
+        public long GrandTotalItemsExplicitlyFreed { get; }
 
+        // コンストラクタと ToString() は実装クラスで定義
         public OverallPoolStatistics(string strategyName, IEnumerable<BucketStatistics> bucketStats);
         public override string ToString();
     }
