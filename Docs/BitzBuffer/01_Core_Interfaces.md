@@ -33,7 +33,7 @@
     *   **論理長の切り詰め:** `IWritableBuffer<T>.Truncate(long length)` メソッドは、バッファの論理長を指定された長さに短縮します。
     *   **初期の論理長設定:** 既存データをラップしてバッファを生成する場合、その初期の論理長はバッファ生成時のオプション（`IBufferFactory` 経由）で設定されます。
 *   **読み取り専用スライス:** `IReadOnlyBuffer<T>.Slice` 操作は常に読み取り専用のバッファ (`IReadOnlyBuffer<T>`) を返します。スライスは元のバッファのデータを参照するビューであり、データを所有しません (`IsOwner == false`)。元のバッファが無効になるとスライスも無効になります。
-*   **スレッドセーフティ:** `IBufferProvider` から取得した個々の `IBuffer<T>` インスタンスのメソッドはスレッドセーフではありません。単一の `IBuffer<T>` インスタンスを複数のスレッドから同時に操作する場合は、呼び出し側で適切な同期を行う必要があります。プーリング機構自体はスレッドセーフに設計されます（詳細は [`Docs/DesignSpecs/03_Pooling.md`](Docs/DesignSpecs/03_Pooling.md) を参照）。
+*   **スレッドセーフティ:** `IBufferProvider` から取得した個々の `IBuffer<T>` インスタンスのメソッドはスレッドセーフではありません。単一の `IBuffer<T>` インスタンスを複数のスレッドから同時に操作する場合は、呼び出し側で適切な同期を行う必要があります。プーリング機構自体はスレッドセーフに設計されます（詳細は [`03_Pooling.md`](./03_Pooling.md) を参照）。
 *   **ゼロコピーアタッチのためのセグメント情報 (`BitzBufferSequenceSegment<T>`):**
     *   ゼロコピーでの所有権移譲を安全かつ効率的に行うため、本ライブラリは `System.Buffers.ReadOnlySequenceSegment<T>` を拡張した `BitzBufferSequenceSegment<T>` という内部的なカスタムセグメントクラスの概念を導入します。
     *   このカスタムセグメントは、標準のメモリ情報に加え、そのセグメントの「所有者」（解放責任を持つ `IDisposable` オブジェクト）や、それが属する元の `IBuffer<T>` インスタンスへの参照、所有権移譲の可否といったメタデータを保持します。
@@ -64,10 +64,6 @@
 ```csharp
 using System;
 using System.Buffers;
-using System.Collections.Generic; // IEnumerable のため
-// BitzBufferSequenceSegment<T> の名前空間を using する (実際の名前空間に合わせてください)
-// 例: using BitzBuffer.Core.Internals;
-// または、BitzBufferSequenceSegment<T> が公開APIなら using BitzBuffer;
 
 // バッファの所有権と破棄状態を示す基本的な状態インターフェース。
 public interface IBufferState
@@ -96,7 +92,7 @@ public interface IOwnedResource : IBufferState, IDisposable
 
 // 読み取り専用のバッファインターフェース。
 public interface IReadOnlyBuffer<T> : IOwnedResource
-    where T : struct
+    where T : struct // 制約を追加 (IBuffer<T> の T と合わせる)
 {
     /// <summary>
     /// バッファに書き込まれた有効なデータの論理的な長さを取得します。
@@ -121,17 +117,6 @@ public interface IReadOnlyBuffer<T> : IOwnedResource
     /// IsOwner が false または IsDisposed が true の場合、例外 (InvalidOperationException または ObjectDisposedException) をスローすることがあります。
     /// </summary>
     ReadOnlySequence<T> AsReadOnlySequence();
-
-    /// <summary>
-    /// このバッファの内容を、所有者情報を含む BitzBufferSequenceSegment<T> のシーケンスとして取得します。
-    /// 主に BitzBuffer.Pipelines の TryAttachZeroCopy のような、高度なゼロコピー所有権移譲シナリオでの使用を想定しています。
-    /// </summary>
-    /// <returns>所有者情報を含むカスタムセグメントのシーケンス。</returns>
-    /// <remarks>
-    /// 返される各セグメントの IsOwnershipTransferred フラグは初期状態では false です。
-    /// このバッファの IsOwner が false または IsDisposed が true の場合、空のシーケンスを返すか、例外をスローすることがあります。
-    /// </remarks>
-    IEnumerable<BitzBufferSequenceSegment<T>> AsAttachableSegments();
 
     /// <summary>
     /// バッファ全体が単一の連続したメモリセグメントで構成され、かつデータが存在する場合 (Length > 0)、
@@ -180,7 +165,7 @@ public enum AttachmentResult
 
 // 書き込み専用のバッファインターフェース。
 public interface IWritableBuffer<T> : IBufferState
-    where T : struct
+    where T : struct // 制約を追加
 {
     /// <summary>
     /// バッファの現在の論理的な末尾 (Length の位置) 以降に、
@@ -208,38 +193,8 @@ public interface IWritableBuffer<T> : IBufferState
 
     // --- データアタッチメソッド ---
     // IsOwner が false または IsDisposed が true の場合、各アタッチメソッドは例外をスローします。
-
-    /// <summary>
-    /// 指定された ReadOnlySequence<T> をこのバッファの末尾に追加します。
-    /// attemptZeroCopy が true の場合、まずゼロコピーでのアタッチ（所有権の奪取）を試みます。
-    /// ゼロコピーの試行は、sequenceToAttach が BitzBuffer の IReadOnlyBuffer<T> から生成されたと判断できる場合に最も効果的です。
-    /// ゼロコピーが不可能な場合は、データのコピーにフォールバックします。
-    /// </summary>
-    /// <param name="sequenceToAttach">追加するシーケンス。</param>
-    /// <param name="attemptZeroCopy">ゼロコピーを試みる場合は true (デフォルト)。false の場合は常にコピーします。</param>
-    /// <returns>アタッチ操作の結果 (ゼロコピー成功か、コピーが発生したか)。</returns>
-    /// <remarks>
-    /// ゼロコピーの条件は限定的です (詳細は Docs/DesignSpecs/02_Providers_And_Buffers.md および本ドキュメントの「3.4. 将来の拡張」を参照)。
-    /// もし source が IReadOnlyBuffer<T> であることが分かっている場合は、AttachSequence(IReadOnlyBuffer<T>, bool) オーバーロードの使用を検討してください。
-    /// </remarks>
     AttachmentResult AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true);
-
-    /// <summary>
-    /// 指定された BitzBuffer の IReadOnlyBuffer<T> の内容をこのバッファの末尾に追加します。
-    /// attemptZeroCopy が true の場合、まずゼロコピーでのアタッチ（所有権の奪取）を試みます。
-    /// これは sourceBitzBuffer.AsAttachableSegments() を介して行われます。
-    /// ゼロコピーが不可能な場合は、データのコピーにフォールバックします。
-    /// </summary>
-    /// <param name="sourceBitzBuffer">追加する BitzBuffer インスタンス。</param>
-    /// <param name="attemptZeroCopy">ゼロコピーを試みる場合は true (デフォルト)。false の場合は常にコピーします。</param>
-    /// <returns>アタッチ操作の結果 (ゼロコピー成功か、コピーが発生したか)。</returns>
-    AttachmentResult AttachSequence(IReadOnlyBuffer<T> sourceBitzBuffer, bool attemptZeroCopy = true);
-
-    /// <summary>
-    /// 指定された BitzBufferSequenceSegment<T> のシーケンスを、ゼロコピーでのアタッチ（所有権の奪取）によってのみ
-    /// このバッファの末尾に追加しようと試みます。
-    /// </summary>
-    bool TryAttachZeroCopy(IEnumerable<BitzBufferSequenceSegment<T>> segmentsToAttach);
+    bool TryAttachZeroCopy(ReadOnlySequence<T> sequenceToAttach);
 
     // --- その他の書き込み関連メソッド ---
     // IsOwner が false または IsDisposed が true の場合、各メソッドは例外をスローします。
@@ -266,46 +221,13 @@ public interface IWritableBuffer<T> : IBufferState
 public interface IBuffer<T> : IReadOnlyBuffer<T>, IWritableBuffer<T>
     where T : struct
 {
-     // IBufferState のメンバー (IsOwner, IsDisposed) は両方の親インターフェースから継承されるが、
+    // IBufferState のメンバー (IsOwner, IsDisposed) は両方の親インターフェースから継承されるが、
     // 実装は単一の underlying state を持つ。
     // IDisposable は IReadOnlyBuffer<T> (経由で IOwnedResource) から継承。
 
     // 実装クラスは、IsOwner および IsDisposed の状態に基づいて、
     // 読み書きメソッドが呼び出された際に適切に例外をスローする必要があります。
     // (例外の詳細は Docs/DesignSpecs/05_Error_Handling.md を参照)
-}
-
-// --- BitzBufferSequenceSegment<T> の概念定義 ---
-// (実際のクラス定義は BitzBuffer コアライブラリの適切な名前空間に配置されます)
-// namespace BitzBuffer.Core.Internals; // 例
-/// <summary>
-/// BitzBuffer ライブラリ内部で使用される、所有者情報を含む ReadOnlySequenceSegment。
-/// ゼロコピーでの所有権移譲をサポートするために、元のバッファやセグメント固有の解放処理への参照を保持します。
-/// </summary>
-/// <typeparam name="T">セグメント内の要素の型。</typeparam>
-public class BitzBufferSequenceSegment<T> : ReadOnlySequenceSegment<T> where T : struct
-{
-    /// <summary>
-    /// このセグメントが属する元の IBuffer<T> インスタンスへの参照（オプション）。
-    /// </summary>
-    public IBuffer<T>? SourceBuffer { get; internal set; }
-    /// <summary>
-    /// この特定のセグメントのメモリ解放に責任を持つ IDisposable オブジェクト。
-    /// </summary>
-    public IDisposable? SegmentSpecificOwner { get; internal set; }
-    /// <summary>
-    /// このセグメントの所有権が移譲されたかどうかを示します。
-    /// </summary>
-    public bool IsOwnershipTransferred { get; internal set; }
-    /// <summary>
-    /// このセグメントが所有権移譲の対象として適格かどうかを示します。
-    /// </summary>
-    public bool IsEligibleForOwnershipTransfer { get; internal set; } = true;
-
-    // コンストラクタ、Next プロパティ、RunningIndex プロパティは実装クラスで適切に定義されます。
-    // 例: public BitzBufferSequenceSegment(ReadOnlyMemory<T> memory) { this.Memory = memory; }
-    //     public new BitzBufferSequenceSegment<T>? Next { get; set; } // base.Next を隠蔽し型を強める
-    //     public new long RunningIndex { get; set; } // base.RunningIndex を隠蔽
 }
 ```
 
@@ -315,6 +237,6 @@ public class BitzBufferSequenceSegment<T> : ReadOnlySequenceSegment<T> where T :
 *   **複雑なバッファ操作API**
 *   **`AttachSequence` / `TryAttachZeroCopy` の機能強化** (特に `ReadOnlySequence<T>` からのゼロコピーサポートの向上)
 *   **`TrySlice` パターンの導入**
-*   **Stream連携機能** (詳細は [`Docs/BitzBuffer/02_Providers_And_Buffers.md`](Docs/BitzBuffer/02_Providers_And_Buffers.md) も参照)
+*   **Stream連携機能** (詳細は [`02_Providers_And_Buffers.md`](./02_Providers_And_Buffers.md) も参照)
 *   **`IWritableBuffer<T>.GetMemory()` の高度化**
 *   **非同期I/O向けバッファアクセスインターフェース** (`BitzBuffer.Pipelines` 関連)

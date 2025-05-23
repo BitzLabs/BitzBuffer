@@ -27,7 +27,7 @@
     *   **`TResource`:** `TBuffer` が内部的に使用する基盤リソース型 (例: `TItem[]`, `SafeHandle`)。
     *   **`TItem`:** バッファ内の要素型 (`struct` 制約)。
     *   **主な挙動:**
-        *   **`RentBuffer(minimumSizeInElements)`:** 要求サイズ以上の最小バケットから貸し出し。バケットが空なら新規アロケートを試みます。上限設定により失敗する可能性もあります。
+        *   **`RentBuffer(minimumSizeInElements)`:** 要求サイズ以上の最小バケットから貸し出し。バケットが空なら新規アロケートを試みます。上限設定により失敗する可能性もあります (詳細は [`./05_Error_Handling.md`](./05_Error_Handling.md) 参照)。
         *   **`ReturnBuffer(TBuffer buffer)`:** バッファを適切なバケットに返却。バケットが最大保持数に達していればリソースを破棄します。
     *   **API (例):**
         *   `TBuffer RentBuffer(int minimumSizeInElements)`
@@ -63,7 +63,7 @@
         {
             TBuffer OnCreate<TResource>(TResource underlyingResource, int resourceSizeInElements, object? poolContext = null);
             void OnRent(TBuffer buffer, BufferRentOptions options);
-            bool OnReturn(TBuffer buffer, BufferReturnOptions options);
+            bool OnReturn(TBuffer buffer, BufferReturnOptions options); // trueなら再利用, falseなら破棄
             void OnDestroy(TBuffer buffer);
         }
         public interface IResettableBuffer
@@ -77,15 +77,15 @@
         *   `OnReturn`: 返却されるバッファのクリーンアップ。プロバイダ設定や `BufferReturnOptions.ClearBufferOnReturn` に基づき、ここでバッファのクリア処理を実行。再利用可否も判断。
         *   `OnDestroy`: バッファ破棄前の最終処理。
 *   **プロバイダオプション (`*ProviderOptionsBuilder`):**
-    *   プーリング戦略、バケット設定、アロケータ、ライフサイクルフックの実装、デフォルトのクリアポリシーなどを設定します。（詳細は [`02_Providers_And_Buffers.md`](02_Providers_And_Buffers.md) を参照）
+    *   プーリング戦略、バケット設定、アロケータ、ライフサイクルフックの実装、デフォルトのクリアポリシーなどを設定します。（詳細は [`./02_Providers_And_Buffers.md`](./02_Providers_And_Buffers.md) を参照）
 
 ### 6.2. バッファのクリア処理ポリシー
 
-（内容は前回提示版と同様）
+（内容は変更なし）
 
 ### 6.3. デフォルトのプーリング戦略
 
-（内容は前回提示版と同様）
+（内容は変更なし）
 
 ### 6.4. プーリング統計情報API
 
@@ -109,9 +109,8 @@
 
         public BucketStatistics(string identifier, int resourceSize, int currentFreeCount, int currentRentedCount, int maxCapacity,
                                  long totalRentRequests, long totalRentHits, long totalMissesAndAllocations,
-                                 long totalReturns, long totalReturnsDiscardedOnLimit, long totalItemsExplicitlyFreed)
-        { /* プロパティ初期化 */ }
-        public override string ToString() { /* 見やすい形式で表示 */ return "..."; }
+                                 long totalReturns, long totalReturnsDiscardedOnLimit, long totalItemsExplicitlyFreed);
+        public override string ToString();
     }
     ```
 *   **`OverallPoolStatistics` 構造体:** プーリング戦略全体の集計情報。
@@ -125,8 +124,8 @@
         public long GrandTotalRentRequests { get; }
         // ... (BucketStatistics の各 Total/GrandTotal 版) ...
 
-        public OverallPoolStatistics(string strategyName, IEnumerable<BucketStatistics> bucketStats) { /* 集計ロジック */ }
-        public override string ToString() { /* 見やすい形式で表示 */ return "..."; }
+        public OverallPoolStatistics(string strategyName, IEnumerable<BucketStatistics> bucketStats);
+        public override string ToString();
     }
     ```
 *   **取得API:**
