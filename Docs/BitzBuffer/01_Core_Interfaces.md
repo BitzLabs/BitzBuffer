@@ -18,7 +18,10 @@
 *   **所有権管理とライフサイクル (`IOwnedResource`, `IBufferState`):**
     *   **`IBufferState`**: バッファが有効な所有権を持つか (`IsOwner`)、既に破棄されたか (`IsDisposed`) を示す状態プロパティを提供します。これにより、バッファが安全に使用可能かを確認できます。
     *   **`IOwnedResource`**: `IBufferState` を拡張し、`IDisposable` を実装することでリソース解放の責務も明確化します。バッファの利用者は、`Dispose()` を呼び出すことでリソースを適切に解放（プールへ返却または直接解放）する責任があります。
-    *   **所有権の移譲:** `IWritableBuffer<T>.TryAttachZeroCopy` や `AttachSequence` メソッド（ゼロコピー試行時）により、あるバッファ (`ReadOnlySequence<T>`) の所有権を別の書き込み可能バッファに（ゼロコピーで）移譲できます。移譲元のバッファは `IsOwner = false` となり、解放責任は移譲先に移ります。移譲元のバッファインスタンス経由でのデータアクセスはできなくなります（例外スロー）。
+    *   **所有権の移譲:** `IWritableBuffer<T>.TryAttachZeroCopy(IEnumerable<BitzBufferSequenceSegment<T>> segmentsToAttach)` メソッド、または `AttachSequence` メソッドでゼロコピーアタッチが成功した場合、引数で渡されたセグメントの所有権が、呼び出し先の `IWritableBuffer<T>` インスタンス（アタッチ先バッファ）に移譲されます。
+        *   **解放責任の移行:** 各 `BitzBufferSequenceSegment<T>` が保持する `SegmentSpecificOwner` の `Dispose()` 責任が、アタッチ先バッファに完全に移行します。
+        *   **元のバッファの責任変更:** アタッチされたセグメントの元の所有者は、もはやその `SegmentSpecificOwner` を `Dispose()` する責任を負いません。これは `BitzBufferSequenceSegment<T>.IsOwnershipTransferred` フラグ ( `true` に設定される) によって示されます。
+        *   **アタッチ先バッファの `Dispose()` 時の挙動:** アタッチ先バッファが `Dispose()` される際には、所有権を引き継いだ全ての `SegmentSpecificOwner` を確実に `Dispose()` します。
         *   **ユースケース例:** FAプロトコル処理で、受信パイプラインから得たデータ（ペイロード）の所有権を新しいバッファに移し、その前後にヘッダとフッタを追加して送信パイプラインに渡す。ペイロードのコピーは発生せず、ライフサイクル管理は新しいバッファが一元的に行う。
     *   **`Dispose()` の挙動:**
         *   プール管理下のバッファ (`IsOwner == true`): プールへ返却。返却時、`IBufferLifecycleHooks.OnReturn` が呼び出され、バッファの状態リセット（論理長クリアなど）やオプションに応じたデータクリアが行われることがあります。
@@ -30,7 +33,11 @@
     *   **論理長の切り詰め:** `IWritableBuffer<T>.Truncate(long length)` メソッドは、バッファの論理長を指定された長さに短縮します。
     *   **初期の論理長設定:** 既存データをラップしてバッファを生成する場合、その初期の論理長はバッファ生成時のオプション（`IBufferFactory` 経由）で設定されます。
 *   **読み取り専用スライス:** `IReadOnlyBuffer<T>.Slice` 操作は常に読み取り専用のバッファ (`IReadOnlyBuffer<T>`) を返します。スライスは元のバッファのデータを参照するビューであり、データを所有しません (`IsOwner == false`)。元のバッファが無効になるとスライスも無効になります。
-*   **スレッドセーフティ:** `IBufferProvider` から取得した個々の `IBuffer<T>` インスタンスのメソッドはスレッドセーフではありません。単一の `IBuffer<T>` インスタンスを複数のスレッドから同時に操作する場合は、呼び出し側で適切な同期を行う必要があります。プーリング機構自体はスレッドセーフに設計されます（詳細は [`Docs/DesignSpecs/03_Pooling.md`](03_Pooling.md) を参照）。
+*   **スレッドセーフティ:** `IBufferProvider` から取得した個々の `IBuffer<T>` インスタンスのメソッドはスレッドセーフではありません。単一の `IBuffer<T>` インスタンスを複数のスレッドから同時に操作する場合は、呼び出し側で適切な同期を行う必要があります。プーリング機構自体はスレッドセーフに設計されます（詳細は [`03_Pooling.md`](./03_Pooling.md) を参照）。
+*   **ゼロコピーアタッチのためのセグメント情報 (`BitzBufferSequenceSegment<T>`):**
+    *   ゼロコピーでの所有権移譲を安全かつ効率的に行うため、本ライブラリは `System.Buffers.ReadOnlySequenceSegment<T>` を拡張した `BitzBufferSequenceSegment<T>` という内部的なカスタムセグメントクラスの概念を導入します。
+    *   このカスタムセグメントは、標準のメモリ情報に加え、そのセグメントの「所有者」（解放責任を持つ `IDisposable` オブジェクト）や、それが属する元の `IBuffer<T>` インスタンスへの参照、所有権移譲の可否といったメタデータを保持します。
+    *   `IReadOnlyBuffer<T>` は、この `BitzBufferSequenceSegment<T>` のシーケンスを提供する `AsAttachableSegments()` メソッドを公開します。これにより、BitzBuffer.Pipelinesのようなコンポーネントが、これらのメタ情報を利用して安全なゼロコピーアタッチを実現できます。
 
 ### 3.2. インターフェース階層
 
@@ -212,7 +219,7 @@ public interface IWritableBuffer<T> : IBufferState
 
 // バッファ管理ライブラリ「BitzBuffer」における主要なバッファインターフェース。
 public interface IBuffer<T> : IReadOnlyBuffer<T>, IWritableBuffer<T>
-    where T : struct // 制約を追加
+    where T : struct
 {
     // IBufferState のメンバー (IsOwner, IsDisposed) は両方の親インターフェースから継承されるが、
     // 実装は単一の underlying state を持つ。
@@ -228,8 +235,8 @@ public interface IBuffer<T> : IReadOnlyBuffer<T>, IWritableBuffer<T>
 
 *   **高度な所有権管理**
 *   **複雑なバッファ操作API**
-*   **`AttachSequence` / `TryAttachZeroCopy` の機能強化**
+*   **`AttachSequence` / `TryAttachZeroCopy` の機能強化** (特に `ReadOnlySequence<T>` からのゼロコピーサポートの向上)
 *   **`TrySlice` パターンの導入**
-*   **Stream連携機能** (詳細は [`Docs/DesignSpecs/02_Providers_And_Buffers.md`](02_Providers_And_Buffers.md) も参照)
+*   **Stream連携機能** (詳細は [`02_Providers_And_Buffers.md`](./02_Providers_And_Buffers.md) も参照)
 *   **`IWritableBuffer<T>.GetMemory()` の高度化**
 *   **非同期I/O向けバッファアクセスインターフェース** (`BitzBuffer.Pipelines` 関連)
