@@ -7,7 +7,7 @@ namespace BitzLabs.BitzBuffer
     // IOwnedResource を継承し、リソースの所有権とライフサイクル管理の責務を持ちます。
     public interface IReadOnlyBuffer<TItem> : IOwnedResource where TItem : struct
     {
-        // バッファの現在の読み取り可能な長さをバイト単位で示します。
+        // バッファの現在の読み取り可能な長さを要素単位で示します。
         // 非連続バッファの場合、全セグメントの合計長です。
         long Length { get; }
 
@@ -20,7 +20,7 @@ namespace BitzLabs.BitzBuffer
 
         // バッファ全体を ReadOnlySequence<TItem> として取得します。
         // これにより、非連続メモリを効率的に扱うことができます。
-        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
+        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローする場合があります。
         ReadOnlySequence<TItem> AsReadOnlySequence();
 
         // バッファの先頭から指定された長さのデータを新しい IReadOnlyBuffer<TItem> としてスライスします。
@@ -39,13 +39,13 @@ namespace BitzLabs.BitzBuffer
         // バッファが単一の連続した ReadOnlyMemory<TItem> セグメントで表現できる場合に、そのセグメントを取得しようとします。
         // 成功した場合は true を返し、memory にセグメントが設定されます。
         // 失敗した場合 (非連続メモリの場合など) は false を返します。
-        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
+        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローする場合があります。
         bool TryGetSingleMemory(out ReadOnlyMemory<TItem> memory);
 
         // バッファが単一の連続した ReadOnlySpan<TItem> セグメントで表現できる場合に、そのセグメントを取得しようとします。
         // 成功した場合は true を返し、span にセグメントが設定されます。
         // 失敗した場合 (非連続メモリの場合など) は false を返します。
-        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
+        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローする場合があります。
         bool TryGetSingleSpan(out ReadOnlySpan<TItem> span);
     }
 }
