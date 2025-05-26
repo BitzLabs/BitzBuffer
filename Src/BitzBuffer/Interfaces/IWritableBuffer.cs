@@ -1,39 +1,22 @@
 using System;
+using System.Buffers; // For ReadOnlySequence<TItem>
 
 namespace BitzLabs.BitzBuffer
 {
     // 書き込み可能な連続または非連続メモリ領域へのアクセスを提供します。
-    // IOwnedResource を継承し、リソースの所有権とライフサイクル管理の責務を持ちます。
-    public interface IWritableBuffer<T> : IOwnedResource where T : struct
+    // IBufferState を継承し、バッファの状態管理の責務を持ちます。
+    // 書き込み操作に特化しており、IDisposable は直接継承しません。
+    public interface IWritableBuffer<TItem> : IBufferState where TItem : struct
     {
-        // バッファの現在の書き込み可能な容量をバイト単位で示します。
-        // これは、バッファが現在保持しているデータの長さではなく、書き込み可能な最大サイズです。
-        long Capacity { get; }
-
-        // バッファに現在書き込まれているデータの長さをバイト単位で示します。
-        // 初期状態では 0 です。Advance() メソッドによって進められます。
-        long WrittenCount { get; }
-
-        // バッファの残りの書き込み可能な容量をバイト単位で示します。
-        // Capacity - WrittenCount と同等です。
-        long FreeCapacity { get; }
-
-        // バッファの先頭から書き込み用の Memory<T> を取得します。
+        // バッファの先頭から書き込み用の Memory<TItem> を取得します。
         // sizeHint で要求されたサイズ以上の連続したメモリ領域を返そうと試みます。
         // 実際に取得できるサイズは、基になるバッファの実装に依存します。
         // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
         // sizeHint が負数の場合、ArgumentOutOfRangeException をスローします。
-        Memory<T> GetMemory(int sizeHint = 0);
-
-        // バッファの先頭から書き込み用の Span<T> を取得します。
-        // sizeHint で要求されたサイズ以上の連続したメモリ領域を返そうと試みます。
-        // 実際に取得できるサイズは、基になるバッファの実装に依存します。
-        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
-        // sizeHint が負数の場合、ArgumentOutOfRangeException をスローします。
-        Span<T> GetSpan(int sizeHint = 0);
+        Memory<TItem> GetMemory(int sizeHint = 0);
 
         // 指定されたバイト数だけ書き込みポインタを進めます。
-        // これにより、GetMemory() や GetSpan() で取得した領域にデータが書き込まれたことをバッファに通知します。
+        // これにより、GetMemory() で取得した領域にデータが書き込まれたことをバッファに通知します。
         // count が負数、または FreeCapacity を超える場合、ArgumentOutOfRangeException をスローします。
         // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
         void Advance(int count);
@@ -43,10 +26,40 @@ namespace BitzLabs.BitzBuffer
         // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
         void Clear();
 
-        // バッファに書き込まれた内容を IReadOnlyBuffer<T> として取得します。
-        // このメソッドを呼び出すと、現在の IWritableBuffer<T> インスタンスの所有権は失われ (IsOwner = false)、
-        // 新しく返される IReadOnlyBuffer<T> がリソースの所有権を引き継ぎます。
-        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
-        IReadOnlyBuffer<T> AsReadOnly();
+        // source の内容をバッファに書き込みます。
+        void Write(ReadOnlySpan<TItem> source);
+
+        // source の内容をバッファに書き込みます。
+        void Write(ReadOnlyMemory<TItem> source);
+
+        // value をバッファに書き込みます。
+        void Write(TItem value);
+
+        // source の内容をバッファに書き込みます。
+        void Write(ReadOnlySequence<TItem> source);
+
+        // 指定されたシーケンスを現在のバッファにアタッチしようと試みます。
+        // ゼロコピーが可能な場合はゼロコピーでアタッチし、そうでない場合は allowCopy が true であればコピーしてアタッチします。
+        // 戻り値はアタッチの結果を示します。
+        // アタッチ後、元の sequence はアタッチされた部分を表すように変更されることがあります。
+        AttachmentResult AttachSequence(ref ReadOnlySequence<TItem> sequence, bool allowCopy = true);
+
+        // 指定されたシーケンスを現在のバッファにゼロコピーでアタッチしようと試みます。
+        // 成功した場合、true を返し、attachedBuffer にアタッチされた部分を表す読み取り専用バッファが設定されます。
+        // 失敗した場合は false を返します。
+        // アタッチ後、元の sequence はアタッチされた部分を表すように変更されることがあります。
+        bool TryAttachZeroCopy(ref ReadOnlySequence<TItem> sequence, out IReadOnlyBuffer<TItem>? attachedBuffer);
+
+        // source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。
+        void Prepend(ReadOnlySpan<TItem> source);
+
+        // source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。
+        void Prepend(ReadOnlyMemory<TItem> source);
+
+        // value をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。
+        void Prepend(TItem value);
+
+        // source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。
+        void Prepend(ReadOnlySequence<TItem> source);
     }
 }
