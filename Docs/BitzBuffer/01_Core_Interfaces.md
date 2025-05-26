@@ -191,9 +191,25 @@ public interface IWritableBuffer<T> : IBufferState
     void Write(T value);
     void Write(ReadOnlySequence<T> source); // ReadOnlySequence<T> source の内容は常にコピーされて書き込まれます。
 
-    // --- データアタッチメソッド ---
+     // --- データアタッチメソッド ---
     // IsOwner が false または IsDisposed が true の場合、各アタッチメソッドは例外をスローします。
     AttachmentResult AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true);
+
+    /// <summary>
+    /// 指定された読み取り専用シーケンス <paramref name="sequenceToAttach"/> の内容を、
+    /// 条件が合えば物理的なコピーなしに現在のバッファの末尾にアタッチ（追加）しようと試みます。
+    /// </summary>
+    /// <param name="sequenceToAttach">現在のバッファに追加するデータを含む読み取り専用シーケンス。</param>
+    /// <returns>
+    /// アタッチに成功した場合は <c>true</c> を返し、現在のバッファの <see cref="IReadOnlyBuffer{T}.Length"/> および内部構造 (セグメント) が更新されます。
+    /// アタッチに失敗した（ゼロコピーの条件を満たせなかった、または他の理由による）場合は <c>false</c> を返し、現在のバッファの状態は変更されません。
+    /// </returns>
+    /// <remarks>
+    /// ゼロコピーアタッチが成功した場合、<paramref name="sequenceToAttach"/> がBitzBufferライブラリ管理下のセグメントから構成されていれば、
+    /// それらのセグメントの所有権が現在のバッファに移譲されることがあります。具体的な振る舞いはバッファの実装クラスに依存します。
+    /// このメソッドを呼び出す前に、<see cref="IBufferState.IsOwner"/> が <c>true</c> であり、<see cref="IBufferState.IsDisposed"/> が <c>false</c> であることを確認してください。
+    /// そうでない場合、<see cref="InvalidOperationException"/> または <see cref="ObjectDisposedException"/> がスローされます。
+    /// </remarks>
     bool TryAttachZeroCopy(ReadOnlySequence<T> sequenceToAttach);
 
     // --- その他の書き込み関連メソッド ---

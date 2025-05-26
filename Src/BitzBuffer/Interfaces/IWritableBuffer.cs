@@ -43,9 +43,14 @@ namespace BitzLabs.BitzBuffer
         // 戻り値はアタッチの結果を示します (ゼロコピー成功、コピー成功、失敗など)。
         AttachmentResult AttachSequence(ReadOnlySequence<TItem> sequenceToAttach, bool attemptZeroCopy = true);
 
-        // 指定されたシーケンスを現在のバッファにゼロコピーでアタッチしようと試みます。
-        // 成功した場合、true を返し、attachedBuffer にアタッチされた部分を表す読み取り専用バッファが設定されます。
-        // 失敗した場合は false を返します。 (設計書では、アタッチされたバッファを返す方法は明記されていません)
+ // 指定された読み取り専用シーケンス sequenceToAttach の内容を、
+        // 条件が合えば物理的なコピーなしに現在のバッファの末尾にアタッチ（追加）しようと試みます。
+        // アタッチに成功した場合は true を返し、現在のバッファの IReadOnlyBuffer<TItem>.Length および内部構造 (セグメント) が更新されます。
+        // アタッチに失敗した（ゼロコピーの条件を満たせなかった、または他の理由による）場合は false を返し、現在のバッファの状態は変更されません。
+        // ゼロコピーアタッチが成功した場合、sequenceToAttach がBitzBufferライブラリ管理下のセグメントから構成されていれば、
+        // それらのセグメントの所有権が現在のバッファに移譲されることがあります。具体的な振る舞いはバッファの実装クラスに依存します。
+        // このメソッドを呼び出す前に、IBufferState.IsOwner が true であり、IBufferState.IsDisposed が false であることを確認してください。
+        // そうでない場合、InvalidOperationException または ObjectDisposedException がスローされます。
         bool TryAttachZeroCopy(ReadOnlySequence<TItem> sequenceToAttach);
 
         //  source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。この操作では、source の内容がコピーされます。
