@@ -21,9 +21,9 @@ namespace BitzLabs.BitzBuffer
         // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローする場合があります。
         void Advance(int count);
 
-        // バッファの書き込み位置をリセットし、WrittenCount を 0 にします。
-        // バッファの内容はクリアされません。既存のデータを上書きする準備をします。
-        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローします。
+        // バッファの論理的な書き込み済み長さ (IReadOnlyBuffer<TItem>.Length に影響) を0にリセットします。
+        // 確保されているメモリ領域の内容がクリアされるかどうかは、実装のクリアポリシーに依存します。
+        // IsOwner が false または IsDisposed が true の場合、InvalidOperationException または ObjectDisposedException をスローする場合があります。
         void Clear();
 
         // source の内容をバッファに書き込みます。
@@ -35,7 +35,7 @@ namespace BitzLabs.BitzBuffer
         // value をバッファに書き込みます。
         void Write(TItem value);
 
-        // source の内容をバッファに書き込みます。
+         // source の内容をバッファに書き込みます。この操作では、source の内容が常にコピーされます。
         void Write(ReadOnlySequence<TItem> source);
 
         // 指定されたシーケンスを現在のバッファにアタッチしようと試みます。
@@ -47,13 +47,14 @@ namespace BitzLabs.BitzBuffer
         // 成功した場合、true を返し、attachedBuffer にアタッチされた部分を表す読み取り専用バッファが設定されます。
         // 失敗した場合は false を返します。 (設計書では、アタッチされたバッファを返す方法は明記されていません)
         bool TryAttachZeroCopy(ReadOnlySequence<TItem> sequenceToAttach);
-        // source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。
+
+        //  source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。この操作では、source の内容がコピーされます。
         void Prepend(ReadOnlySpan<TItem> source);
 
-        // source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。
+        //  source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。この操作では、source の内容がコピーされます。
         void Prepend(ReadOnlyMemory<TItem> source);
 
-        // source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。
+        //  source の内容をバッファの先頭に挿入します。既存のデータは後ろにシフトされます。この操作では、source の内容がコピーされます。
         void Prepend(ReadOnlySequence<TItem> source);
 
         // バッファの現在の書き込み済み内容を指定された長さに切り詰めます。
