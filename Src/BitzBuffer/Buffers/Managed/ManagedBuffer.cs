@@ -296,11 +296,22 @@ namespace BitzLabs.BitzBuffer.Managed
         public void Truncate(long length)
         {
             ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite(); // Truncateもバッファの状態変更なので所有権が必要。
+            ThrowIfNotOwnerForWrite();
 
-            if (length < 0 || length > _length) throw new ArgumentOutOfRangeException(nameof(length), $"要求された切り詰め後の長さ ({length}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
+            // length は 0以上、かつ現在の論理長 _length 以下である必要がある。
+            // _length は int 型なので、この時点で length が int.MaxValue を超えることはない。
+            if (length < 0 || length > _length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), $"要求された切り詰め後の長さ ({length}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
+            }
 
-            _length = (int)length; // long から int へのキャスト。_length は int なので問題ない想定。
+            // 上記のバリデーションにより、length は int の範囲内に収まることが保証されているため、
+            // ここでの (int)length キャストは安全。
+            // 将来的に _length の型やバリデーションロジックが変更される可能性に備え、
+            // 必要であれば length が int.MaxValue 以下であることの追加チェックを検討することもできるが、
+            // ManagedBuffer<T> が T[] を基盤とする限り、_length が int の範囲を超えることはない。
+            _length = (int)length;
+
             // TODO (設計ポリシー): Truncate時に切り捨てられた部分のデータをクリアするかどうか検討。
             // セキュリティやメモリ管理のポリシーによる。
         }
