@@ -1,4 +1,3 @@
-using System;
 using System.Buffers; // For ReadOnlySequence<TItem>
 
 namespace BitzLabs.BitzBuffer
