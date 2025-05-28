@@ -70,15 +70,17 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public ReadOnlySequence<T> AsReadOnlySequence()
         {
-            ThrowIfDisposed(); // 破棄チェックのみ (方針A: 読み取りに所有権チェックは不要)。
-            // この時点で _isDisposed は false。コンストラクタとDisposeのロジックから _array は非nullのはず。
+            ThrowIfDisposed(); // この呼び出し後、_isDisposed は false。
+                               // _isDisposed が false の場合、_array は null ではないことが期待される。
+
             return new ReadOnlySequence<T>(_array!, 0, _length);
         }
 
         public bool TryGetSingleSpan(out ReadOnlySpan<T> span)
         {
-            ThrowIfDisposed(); // 破棄チェックのみ (方針A)。
-            // この時点で _isDisposed は false。_array は非nullのはず。
+            ThrowIfDisposed(); // この呼び出し後、_isDisposed は false。
+                               // _isDisposed が false の場合、_array は null ではないことが期待される。
+
             if (_length > 0)
             {
                 span = new ReadOnlySpan<T>(_array!, 0, _length);
@@ -90,8 +92,9 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public bool TryGetSingleMemory(out ReadOnlyMemory<T> memory)
         {
-            ThrowIfDisposed(); // 破棄チェックのみ (方針A)。
-            // この時点で _isDisposed は false。_array は非nullのはず。
+            ThrowIfDisposed(); // この呼び出し後、_isDisposed は false。
+                               // _isDisposed が false の場合、_array は null ではないことが期待される。
+
             if (_length > 0)
             {
                 memory = new ReadOnlyMemory<T>(_array!, 0, _length);
@@ -103,7 +106,9 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public IReadOnlyBuffer<T> Slice(long start, long length)
         {
-            ThrowIfDisposed(); // 破棄チェックのみ (方針A)。
+            ThrowIfDisposed(); // この呼び出し後、_isDisposed は false。
+                               // _isDisposed が false の場合、_array は null ではないことが期待される。
+
             // スライス範囲は現在の論理長(_length)を基準とする (方針B)。
             if (start < 0 || start > _length)
             {
@@ -122,7 +127,9 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public IReadOnlyBuffer<T> Slice(long start)
         {
-            ThrowIfDisposed(); // 破棄チェックのみ (方針A)。
+            ThrowIfDisposed(); // この呼び出し後、_isDisposed は false。
+                               // _isDisposed が false の場合、_array は null ではないことが期待される。
+
             if (start < 0 || start > _length)
             {
                 throw new ArgumentOutOfRangeException(nameof(start), $"引数 start ({start}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
@@ -134,14 +141,10 @@ namespace BitzLabs.BitzBuffer.Managed
         // --- IWritableBuffer<T> ---
         public Memory<T> GetMemory(int sizeHint = 0)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
-            // この時点で _isDisposed は false であり、_isOwner は true。
-            // コンストラクタで _array は非nullで初期化され、
-            // Dispose() で _array が null に設定されるのは _isDisposed が true になるのと同じタイミング。
-            // したがって、ここに来る時点で _array は null ではないことが論理的に保証される。
-            // そのため、null免除演算子 (!) を使用する。
             int capacity = _array!.Length;
             int remainingCapacity = capacity - _length;
 
@@ -150,29 +153,43 @@ namespace BitzLabs.BitzBuffer.Managed
                 throw new ArgumentOutOfRangeException(nameof(sizeHint), "引数 sizeHint は0以上である必要があります。");
             }
 
+            // GetMemory が返すメモリサイズの決定ポリシー:
+            // - 方針C1 (現在の実装):     sizeHint が 0 の場合、バッファの残りの全容量を返そうとします。
+            //                           これは、利用可能な領域を最大限に提供するシンプルなアプローチです。
+            // - 方針C2 (将来の検討事項): sizeHint が 0 の場合や非常に大きな場合に、
+            //                           パフォーマンスやAPIの予測可能性の観点から、
+            //                           デフォルトのチャンクサイズ上限（例: 4096バイトやプロバイダオプションで設定可能な値）を
+            //                           設けることも考えられます。以下の TODO コメント参照。
             int effectiveSizeHint;
             if (sizeHint == 0)
             {
-                effectiveSizeHint = remainingCapacity; // 方針C1: sizeHintが0なら残り全容量
+                effectiveSizeHint = Math.Max(0, remainingCapacity); // 方針C1: sizeHintが0なら残りの全容量;
             }
             else
             {
                 effectiveSizeHint = sizeHint;
             }
-            // TODO (方針C2のコメント): 将来的な検討事項として、sizeHintが0の場合や非常に大きな場合に
-            // デフォルトのチャンクサイズ上限（例: 4096）を設けることも考えられる。
-            // 例: if (sizeHint == 0) sizeHint = Math.Min(remainingCapacity, DefaultChunkSize); 
 
+            // TODO (方針C2): 将来的な検討事項として、sizeHintが0の場合や非常に大きな場合に
+            // デフォルトのチャンクサイズ上限（例: 4096）を設けることも考えられる。
+            // 例: if (sizeHint == 0 && remainingCapacity > 0) {
+            //         effectiveSizeHint = Math.Min(remainingCapacity, DefaultChunkSize);
+            //     } else if (sizeHint == 0) {
+            //         effectiveSizeHint = 0;
+            //     } else {
+            //         effectiveSizeHint = sizeHint;
+            //     }
+            // DefaultChunkSize はプロバイダオプション等で設定。
             int actualSize = Math.Min(remainingCapacity, effectiveSizeHint);
             return _array!.AsMemory(_length, actualSize);
         }
 
         public void Advance(int count)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
-            // GetMemoryと同様の理由で _array は非nullのはず。
             if (count < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(count), "引数 count は0以上である必要があります。");
@@ -187,10 +204,10 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public void Write(ReadOnlySpan<T> source)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
-            // GetMemoryと同様の理由で _array は非nullのはず。
             if (source.Length > _array!.Length - _length)
             {
                 throw new ArgumentException($"書き込むソースデータ (長さ: {source.Length}) が、バッファの残り容量 (空き: {_array!.Length - _length}) を超えています。", nameof(source));
@@ -209,11 +226,12 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public void Write(T value)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
-            // GetMemoryと同様の理由で _array は非nullのはず。
-            if (_array!.Length - _length < 1) // 単一要素を書き込むスペースがあるか確認。
+            // 単一要素を書き込むスペースがあるか確認。
+            if (_array!.Length - _length < 1)
             {
                 throw new ArgumentException("単一の値を書き込むための十分な空き容量がバッファにありません。", nameof(value));
             }
@@ -224,10 +242,10 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public void Write(ReadOnlySequence<T> source)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
-            // GetMemoryと同様の理由で _array は非nullのはず。
             long sourceLength = source.Length;
             if (sourceLength > _array!.Length - _length)
             {
@@ -244,18 +262,20 @@ namespace BitzLabs.BitzBuffer.Managed
                 // 複数セグメントの場合は、各セグメントを順に書き込む。
                 foreach (ReadOnlyMemory<T> segment in source)
                 {
-                    Write(segment.Span); // このWrite呼び出しが内部で_lengthを更新する。
+                    // このWrite呼び出しが内部で_lengthを更新する。
+                    Write(segment.Span);
                 }
             }
         }
 
         public AttachmentResult AttachSequence(ReadOnlySequence<T> sequenceToAttach, bool attemptZeroCopy = true)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
             // ManagedBuffer<T> は連続した単一配列を持つため、外部シーケンスのアタッチは常に内容のコピーとなる。
-            Write(sequenceToAttach); // Writeメソッド内で _array の非null性は保証される。
+            Write(sequenceToAttach);
             return AttachmentResult.AttachedAsCopy;
         }
 
@@ -263,9 +283,9 @@ namespace BitzLabs.BitzBuffer.Managed
         // IWritableBuffer<T> インターフェースに追加する場合に実装する。
         // public AttachmentResult AttachSequence(IReadOnlyBuffer<T> sourceBitzBuffer, bool attemptZeroCopy = true)
         // {
-        //     ThrowIfDisposed();
-        //     ThrowIfNotOwnerForWrite();
-        //     // Writeメソッド内で _array の非null性は保証される。
+        //     ThrowIfDisposed();           // この呼び出しにより、_isDisposed が false であることが保証される。
+        //     ThrowIfNotOwnerForWrite();   // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+        //                                  // _isDisposed が false の場合、_array は null ではないことが期待される。
         //     Write(sourceBitzBuffer.AsReadOnlySequence());
         //     return AttachmentResult.AttachedAsCopy;
         // }
@@ -288,8 +308,10 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public void Prepend(ReadOnlySpan<T> source)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
+
             // ManagedBuffer<T> は固定長の配列ベースであり、先頭への効率的な挿入は困難。
             // (既存データを全て後方にシフトする必要があるため、パフォーマンスが悪い)。
             // M1のスコープでは実装しない。将来的にサポートする場合、詳細な設計が必要。
@@ -311,9 +333,9 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public void Clear()
         {
-            ThrowIfDisposed();
-            // Clear操作に所有権が必要かどうかの設計判断。通常、バッファ内容の変更は所有権が必要。
-            ThrowIfNotOwnerForWrite();
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
             _length = 0; // 論理的な長さを0にリセット。
             // TODO (プーリング - M2): プーリング時のクリアポリシー (返却時/レンタル時/クリアしない) を考慮し、
@@ -324,15 +346,20 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public void Truncate(long length)
         {
-            ThrowIfDisposed();
-            ThrowIfNotOwnerForWrite(); // Truncateもバッファの状態変更なので所有権が必要。
+            ThrowIfDisposed();          // この呼び出しにより、_isDisposed が false であることが保証される。
+            ThrowIfNotOwnerForWrite();  // この呼び出しにより、_isOwner が true であることが保証される (書き込み操作の場合)。
+                                        // _isDisposed が false の場合、_array は null ではないことが期待される。
 
+            // length は 0以上、かつ現在の論理長 _length 以下である必要がある。
+            // _length は int 型なので、この時点で length が int.MaxValue を超えることはない。
             if (length < 0 || length > _length)
             {
                 throw new ArgumentOutOfRangeException(nameof(length), $"要求された切り詰め後の長さ ({length}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
             }
 
-            _length = (int)length; // long から int へのキャスト。_length は int なので問題ない想定。
+            // 上記のバリデーションにより、length は int の範囲内に収まることが保証されているため、
+            // ここでの (int)length キャストは安全。
+            _length = (int)length;
             // TODO (設計ポリシー): Truncate時に切り捨てられた部分のデータをクリアするかどうか検討。
             // セキュリティやメモリ管理のポリシーによる。
         }
@@ -374,8 +401,7 @@ namespace BitzLabs.BitzBuffer.Managed
         // public IEnumerable<BitzBufferSequenceSegment<T>> AsAttachableSegments()
         // {
         //     ThrowIfDisposed();
-        //     // TODO (方針Aの再確認): AsAttachableSegments 操作に IsOwner チェックを必須とするか検討。
-        //     // この時点で _isDisposed は false。_array は非nullのはず。
+        //     // この時点で _isDisposed は false。_array は null ではないという契約。
         //
         //     // ManagedBuffer<T> は単一セグメントで構成される。
         //     // SegmentSpecificOwner は、この ManagedBuffer<T> インスタンス自身か、
@@ -385,7 +411,7 @@ namespace BitzLabs.BitzBuffer.Managed
         //     // IsEligibleForOwnershipTransfer は、このバッファが所有権を持ち、かつ破棄されていないなどの条件で true。
         //
         //     // yield return new BitzBufferSequenceSegment<T>(
-        //     //     new ReadOnlyMemory<T>(_array!, 0, _length), // _array! の使用
+        //     //     new ReadOnlyMemory<T>(_array!, 0, _length),
         //     //     segmentSpecificOwner: this, // または適切な所有者オブジェクト
         //     //     sourceBuffer: this,
         //     //     isOwnershipTransferred: false,
