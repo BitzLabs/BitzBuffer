@@ -1,5 +1,3 @@
-using System;
-
 namespace BitzLabs.BitzBuffer
 {
     // IBufferState を拡張し、リソース解放の責務 (IDisposable) を追加したインターフェース。

@@ -1,8 +1,5 @@
-using System;
 using System.Buffers;
-using System.Collections.Generic; // IWritableBuffer<T> の TryAttachZeroCopy(IEnumerable<...>) のプレースホルダのため
 using System.Runtime.CompilerServices;
-using BitzLabs.BitzBuffer; // IBuffer<T> や AttachmentResult などのコアインターフェース・型がここにある想定
 
 namespace BitzLabs.BitzBuffer.Managed
 {
@@ -23,7 +20,8 @@ namespace BitzLabs.BitzBuffer.Managed
         // ライブラリ内部でのみ呼び出されることを想定 (internal)。
         internal ManagedBuffer(T[] array, bool takeOwnership)
         {
-            _array = array ?? throw new ArgumentNullException(nameof(array), "ラップする配列はnullであってはなりません。");
+            ArgumentNullException.ThrowIfNull(array, nameof(array));
+            _array = array;
             _isOwner = takeOwnership;
             _length = 0; // 初期状態では書き込み済みデータはないものとする (方針D1)。
             _isDisposed = false;
@@ -107,8 +105,15 @@ namespace BitzLabs.BitzBuffer.Managed
         {
             ThrowIfDisposed(); // 破棄チェックのみ (方針A)。
             // スライス範囲は現在の論理長(_length)を基準とする (方針B)。
-            if (start < 0 || start > _length) throw new ArgumentOutOfRangeException(nameof(start), $"引数 start ({start}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
-            if (length < 0 || start + length > _length) throw new ArgumentOutOfRangeException(nameof(length), $"引数 length ({length}) が不正です。要求されたスライス範囲 [{start}-{start + length - 1}] は現在の長さ ({_length}) の範囲外です。");
+            if (start < 0 || start > _length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(start), $"引数 start ({start}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
+            }
+
+            if (length < 0 || start + length > _length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), $"引数 length ({length}) が不正です。要求されたスライス範囲 [{start}-{start + length - 1}] は現在の長さ ({_length}) の範囲外です。");
+            }
 
             // TODO: SlicedBufferView<T> (Issue #11) のインスタンスを返却するように実装する。
             // 現状はプレースホルダとしてNotImplementedExceptionをスロー。
@@ -118,7 +123,10 @@ namespace BitzLabs.BitzBuffer.Managed
         public IReadOnlyBuffer<T> Slice(long start)
         {
             ThrowIfDisposed(); // 破棄チェックのみ (方針A)。
-            if (start < 0 || start > _length) throw new ArgumentOutOfRangeException(nameof(start), $"引数 start ({start}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
+            if (start < 0 || start > _length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(start), $"引数 start ({start}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
+            }
             // 残りの部分全てをスライスする。
             return Slice(start, _length - start);
         }
@@ -137,19 +145,25 @@ namespace BitzLabs.BitzBuffer.Managed
             int capacity = _array!.Length;
             int remainingCapacity = capacity - _length;
 
-            if (sizeHint < 0) throw new ArgumentOutOfRangeException(nameof(sizeHint), "引数 sizeHint は0以上である必要があります。");
+            if (sizeHint < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sizeHint), "引数 sizeHint は0以上である必要があります。");
+            }
 
-            // sizeHintが0の場合、残りの全容量を確保しようとする (方針C1)。
+            int effectiveSizeHint;
             if (sizeHint == 0)
             {
-                sizeHint = Math.Max(1, remainingCapacity); // ただし、残容量が0なら0になるように実際の確保サイズで調整される。
+                effectiveSizeHint = remainingCapacity; // 方針C1: sizeHintが0なら残り全容量
+            }
+            else
+            {
+                effectiveSizeHint = sizeHint;
             }
             // TODO (方針C2のコメント): 将来的な検討事項として、sizeHintが0の場合や非常に大きな場合に
             // デフォルトのチャンクサイズ上限（例: 4096）を設けることも考えられる。
             // 例: if (sizeHint == 0) sizeHint = Math.Min(remainingCapacity, DefaultChunkSize); 
-            //     sizeHint = Math.Max(1, sizeHint); // DefaultChunkSize はプロバイダオプション等で設定
 
-            int actualSize = Math.Min(remainingCapacity, sizeHint);
+            int actualSize = Math.Min(remainingCapacity, effectiveSizeHint);
             return _array!.AsMemory(_length, actualSize);
         }
 
@@ -159,8 +173,14 @@ namespace BitzLabs.BitzBuffer.Managed
             ThrowIfNotOwnerForWrite();
 
             // GetMemoryと同様の理由で _array は非nullのはず。
-            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), "引数 count は0以上である必要があります。");
-            if (_length + count > _array!.Length) throw new ArgumentOutOfRangeException(nameof(count), $"指定された要素数 ({count}) だけ進めると、バッファの物理的な容量 ({_array!.Length}) を超えます。現在の長さ: {_length}。");
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), "引数 count は0以上である必要があります。");
+            }
+            if (_length + count > _array!.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), $"指定された要素数 ({count}) だけ進めると、バッファの物理的な容量 ({_array!.Length}) を超えます。現在の長さ: {_length}。");
+            }
 
             _length += count;
         }
@@ -172,7 +192,9 @@ namespace BitzLabs.BitzBuffer.Managed
 
             // GetMemoryと同様の理由で _array は非nullのはず。
             if (source.Length > _array!.Length - _length)
+            {
                 throw new ArgumentException($"書き込むソースデータ (長さ: {source.Length}) が、バッファの残り容量 (空き: {_array!.Length - _length}) を超えています。", nameof(source));
+            }
 
             Memory<T> destination = _array!.AsMemory(_length, source.Length);
             source.CopyTo(destination.Span);
@@ -191,8 +213,10 @@ namespace BitzLabs.BitzBuffer.Managed
             ThrowIfNotOwnerForWrite();
 
             // GetMemoryと同様の理由で _array は非nullのはず。
-            if (1 > _array!.Length - _length) // 単一要素を書き込むスペースがあるか確認。
+            if (_array!.Length - _length < 1) // 単一要素を書き込むスペースがあるか確認。
+            {
                 throw new ArgumentException("単一の値を書き込むための十分な空き容量がバッファにありません。", nameof(value));
+            }
 
             _array![_length] = value;
             _length += 1;
@@ -206,7 +230,9 @@ namespace BitzLabs.BitzBuffer.Managed
             // GetMemoryと同様の理由で _array は非nullのはず。
             long sourceLength = source.Length;
             if (sourceLength > _array!.Length - _length)
+            {
                 throw new ArgumentException($"書き込むソースシーケンス (長さ: {sourceLength}) が、バッファの残り容量 (空き: {_array!.Length - _length}) を超えています。", nameof(source));
+            }
 
             if (source.IsSingleSegment)
             {
@@ -232,7 +258,7 @@ namespace BitzLabs.BitzBuffer.Managed
             Write(sequenceToAttach); // Writeメソッド内で _array の非null性は保証される。
             return AttachmentResult.AttachedAsCopy;
         }
-        
+
         // 設計書(02_Providers_And_Buffers.md 4.1.1.)で言及されている IReadOnlyBuffer<T> を引数に取る AttachSequence オーバーロード。
         // IWritableBuffer<T> インターフェースに追加する場合に実装する。
         // public AttachmentResult AttachSequence(IReadOnlyBuffer<T> sourceBitzBuffer, bool attemptZeroCopy = true)
@@ -301,7 +327,10 @@ namespace BitzLabs.BitzBuffer.Managed
             ThrowIfDisposed();
             ThrowIfNotOwnerForWrite(); // Truncateもバッファの状態変更なので所有権が必要。
 
-            if (length < 0 || length > _length) throw new ArgumentOutOfRangeException(nameof(length), $"要求された切り詰め後の長さ ({length}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
+            if (length < 0 || length > _length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), $"要求された切り詰め後の長さ ({length}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
+            }
 
             _length = (int)length; // long から int へのキャスト。_length は int なので問題ない想定。
             // TODO (設計ポリシー): Truncate時に切り捨てられた部分のデータをクリアするかどうか検討。
