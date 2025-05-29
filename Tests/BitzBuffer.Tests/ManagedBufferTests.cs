@@ -360,6 +360,18 @@ namespace BitzBuffer.Tests
             }
         }
 
+        [Theory(DisplayName = "Slice(start): 不正な開始位置でArgumentOutOfRangeExceptionをスローする")]
+        [InlineData(-1)]      // start < 0
+        [InlineData(4)]       // start > length (buffer.Length が 3 の場合)
+        public void Slice_SingleArgument_WithInvalidStart_ThrowsArgumentOutOfRangeException(long start)
+        {
+            // Arrange
+            var buffer = new ManagedBuffer<int>(new int[3], true);
+            buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // Length = 3
+
+            // Act & Assert
+            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(start));
+        }
 
         // --- 状態変更メソッド (Clear, Truncate) のテスト ---
 
@@ -476,6 +488,7 @@ namespace BitzBuffer.Tests
             Assert.Throws<ObjectDisposedException>(() => buffer.TryGetSingleMemory(out _));
             Assert.Throws<ObjectDisposedException>(() => { var len = buffer.Length; }); // Lengthプロパティも
             Assert.Throws<ObjectDisposedException>(() => buffer.Slice(0));
+            Assert.Throws<ObjectDisposedException>(() => { var isEmpty = buffer.IsEmpty; }); // ← 追加
         }
 
         // --- 所有権がない場合のテスト (IsOwner = false) ---
@@ -562,7 +575,7 @@ namespace BitzBuffer.Tests
             // Assert
             Assert.Contains("ManagedBuffer<Int32>", str);
             Assert.Contains("Length=2", str);
-            Assert.Contains($"Capacity={buffer.AsReadOnlySequence().ToArray().Length + 8}", str); // Capacityは内部配列の長さ
+            Assert.Contains("Capacity=10", str); // Capacityは内部配列の長さ (new int[10] で初期化)
             Assert.Contains("Owner=True", str);
             Assert.Contains("Disposed=False", str);
 
