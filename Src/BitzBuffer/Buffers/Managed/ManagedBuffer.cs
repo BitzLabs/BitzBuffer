@@ -63,7 +63,14 @@ namespace BitzLabs.BitzBuffer.Managed
         public bool IsDisposed => _isDisposed;
 
         // --- IReadOnlyBuffer<T> ---
-        public long Length => _length;
+        public long Length
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return _length;
+            }
+        }
         public bool IsEmpty => _length == 0;
         // ManagedBuffer<T> は常に単一の連続したメモリセグメントで構成される。
         public bool IsSingleSegment => true;
