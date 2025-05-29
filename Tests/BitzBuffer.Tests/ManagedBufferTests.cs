@@ -373,6 +373,34 @@ namespace BitzBuffer.Tests
             Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(start));
         }
 
+        [Theory(DisplayName = "Slice(start, length): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
+        [InlineData(-1, 1)]  // start < 0
+        [InlineData(4, 1)]   // start > buffer.Length (Length=3 の場合)
+        [InlineData(0, -1)]  // length < 0
+        [InlineData(1, 3)]   // start + length > buffer.Length (Length=3 の場合)
+        public void Slice_StartLength_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, long length)
+        {
+            // Arrange
+            var buffer = new ManagedBuffer<int>(new int[3], true);
+            buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // Length = 3
+
+            // Act & Assert
+            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start, length));
+        }
+
+        [Theory(DisplayName = "Slice(start): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
+        [InlineData(-1)] // start < 0
+        [InlineData(4)]  // start > buffer.Length (Length=3 の場合)
+        public void Slice_Start_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start)
+        {
+            // Arrange
+            var buffer = new ManagedBuffer<int>(new int[3], true);
+            buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // Length = 3
+
+            // Act & Assert
+            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start));
+        }
+
         // --- 状態変更メソッド (Clear, Truncate) のテスト ---
 
         [Fact(DisplayName = "Clear: Lengthを0にしIsEmptyをtrueにする")]
