@@ -10,6 +10,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Src", "Src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BitzBuffer", "Src\BitzBuffer\BitzBuffer.csproj", "{3EA0C8AC-9F72-4DBB-BCB5-C200E09BBCD4}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BitzBuffer.Tests", "Tests\BitzBuffer.Tests\BitzBuffer.Tests.csproj", "{DB60458B-EE06-45E7-991D-C6FB4FB89B14}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,11 +36,24 @@ Global
 		{3EA0C8AC-9F72-4DBB-BCB5-C200E09BBCD4}.Release|x64.Build.0 = Release|Any CPU
 		{3EA0C8AC-9F72-4DBB-BCB5-C200E09BBCD4}.Release|x86.ActiveCfg = Release|Any CPU
 		{3EA0C8AC-9F72-4DBB-BCB5-C200E09BBCD4}.Release|x86.Build.0 = Release|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Debug|x64.Build.0 = Debug|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Debug|x86.Build.0 = Debug|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Release|x64.ActiveCfg = Release|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Release|x64.Build.0 = Release|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Release|x86.ActiveCfg = Release|Any CPU
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{3EA0C8AC-9F72-4DBB-BCB5-C200E09BBCD4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{DB60458B-EE06-45E7-991D-C6FB4FB89B14} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
