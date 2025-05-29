@@ -79,9 +79,14 @@ namespace BitzLabs.BitzBuffer.Managed
                 return _length == 0;
             }
         }
-
-        // ManagedBuffer<T> は常に単一の連続したメモリセグメントで構成される。
-        public bool IsSingleSegment => true;
+        public bool IsSingleSegment
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return true;
+            }
+        } 
 
         public ReadOnlySequence<T> AsReadOnlySequence()
         {

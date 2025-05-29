@@ -1,12 +1,7 @@
-﻿using System;
-using System.Buffers;
-using System.Linq; // ToArray() のために追加
+﻿using System.Buffers;
 using BitzLabs.BitzBuffer.Managed; // BitzLabs.BitzBuffer 名前空間に ManagedBuffer<T> がある前提
-using Xunit;
 
-// 名前空間はプロジェクトの構成に合わせてください
-// 例: namespace BitzLabs.BitzBuffer.Tests.Managed
-namespace BitzBuffer.Tests
+namespace BitzLabs.BitzBuffer.Tests.Managed
 {
     public class ManagedBufferTests
     {
@@ -69,7 +64,7 @@ namespace BitzBuffer.Tests
 
             // Act
             var mem1 = buffer.GetMemory(2);
-            Assert.True(mem1.Length >= 2); // 要求サイズ以上であることを確認 (実装による)
+            Assert.True(mem1.Length >= 2); // 要求サイズ以上であることを確認
             mem1.Span[0] = value1;
             mem1.Span[1] = value2;
             buffer.Advance(2);
@@ -338,10 +333,32 @@ namespace BitzBuffer.Tests
             Assert.Throws<NotImplementedException>(() => buffer.Slice(1));
         }
 
-        [Theory(DisplayName = "Slice: 不正な引数でArgumentOutOfRangeExceptionをスローする")]
+        [Theory(DisplayName = "Slice(start, length): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
+        [InlineData(-1, 1)]
+        [InlineData(4, 1)]
+        [InlineData(0, -1)]
+        [InlineData(1, 3)]
+        public void Slice_StartLength_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, long length)
+        {
+            var buffer = new ManagedBuffer<int>(new int[3], true);
+            buffer.Write(new int[] { 1, 2, 3 }.AsSpan());
+            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start, length));
+        }
+
+        [Theory(DisplayName = "Slice(start): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
+        [InlineData(-1)]
+        [InlineData(4)]
+        public void Slice_SingleArgument_WithInvalidStart_ThrowsArgumentOutOfRangeException(long start)
+        {
+            var buffer = new ManagedBuffer<int>(new int[3], true);
+            buffer.Write(new int[] { 1, 2, 3 }.AsSpan());
+            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start));
+        }
+
+        [Theory(DisplayName = "Slice(start, length): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
         [InlineData(-1, 1)]  // start < 0
         [InlineData(4, 1)]   // start > length
-        [InlineData(1, -1)]  // length < 0
+        [InlineData(0, -1)]  // length < 0
         [InlineData(1, 3)]   // start + length > length
         public void Slice_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, long length)
         {
@@ -358,34 +375,6 @@ namespace BitzBuffer.Tests
             {
                 Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start));
             }
-        }
-
-        [Theory(DisplayName = "Slice(start): 不正な開始位置でArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1)]      // start < 0
-        [InlineData(4)]       // start > length (buffer.Length が 3 の場合)
-        public void Slice_SingleArgument_WithInvalidStart_ThrowsArgumentOutOfRangeException(long start)
-        {
-            // Arrange
-            var buffer = new ManagedBuffer<int>(new int[3], true);
-            buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // Length = 3
-
-            // Act & Assert
-            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(start));
-        }
-
-        [Theory(DisplayName = "Slice(start, length): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1, 1)]  // start < 0
-        [InlineData(4, 1)]   // start > buffer.Length (Length=3 の場合)
-        [InlineData(0, -1)]  // length < 0
-        [InlineData(1, 3)]   // start + length > buffer.Length (Length=3 の場合)
-        public void Slice_StartLength_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, long length)
-        {
-            // Arrange
-            var buffer = new ManagedBuffer<int>(new int[3], true);
-            buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // Length = 3
-
-            // Act & Assert
-            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start, length));
         }
 
         [Theory(DisplayName = "Slice(start): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
