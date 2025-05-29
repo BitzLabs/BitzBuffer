@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- テストプロジェクトから internal メンバーへアクセスできるようにする -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="BitzBuffer.Tests" />
+  </ItemGroup>
+
 </Project>

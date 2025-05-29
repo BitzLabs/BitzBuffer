@@ -63,10 +63,30 @@ namespace BitzLabs.BitzBuffer.Managed
         public bool IsDisposed => _isDisposed;
 
         // --- IReadOnlyBuffer<T> ---
-        public long Length => _length;
-        public bool IsEmpty => _length == 0;
-        // ManagedBuffer<T> は常に単一の連続したメモリセグメントで構成される。
-        public bool IsSingleSegment => true;
+        public long Length
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return _length;
+            }
+        }
+        public bool IsEmpty
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return _length == 0;
+            }
+        }
+        public bool IsSingleSegment
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return true;
+            }
+        } 
 
         public ReadOnlySequence<T> AsReadOnlySequence()
         {
@@ -338,10 +358,10 @@ namespace BitzLabs.BitzBuffer.Managed
                                         // _isDisposed が false の場合、_array は null ではないことが期待される。
 
             _length = 0; // 論理的な長さを0にリセット。
-            // TODO (プーリング - M2): プーリング時のクリアポリシー (返却時/レンタル時/クリアしない) を考慮し、
-            // 必要に応じて Array.Clear(_array!, 0, _array!.Length) を実行する。
-            // _array! の使用は、この時点で _array が非nullであることが期待されるため。
-            // 現状は論理長のリセットのみ。
+                         // TODO (プーリング - M2): プーリング時のクリアポリシー (返却時/レンタル時/クリアしない) を考慮し、
+                         // 必要に応じて Array.Clear(_array!, 0, _array!.Length) を実行する。
+                         // _array! の使用は、この時点で _array が非nullであることが期待されるため。
+                         // 現状は論理長のリセットのみ。
         }
 
         public void Truncate(long length)
