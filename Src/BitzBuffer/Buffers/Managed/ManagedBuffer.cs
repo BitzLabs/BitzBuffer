@@ -134,7 +134,7 @@ namespace BitzLabs.BitzBuffer.Managed
             }
             if (length < 0 || start + length > _length)
             {
-                throw new ArgumentOutOfRangeException(nameof(length), $"引数 length ({length}) が不正です。要求されたスライス範囲 [{{start}}-{{start + length - 1}}] は現在の長さ ({_length}) の範囲外です。");
+                throw new ArgumentOutOfRangeException(nameof(length), $"引数 length ({length}) が不正です。要求されたスライス範囲 [{start}-{start + length - 1}] は現在の長さ ({_length}) の範囲外です。");
             }
             // SlicedBufferView<T> を返す（ゼロコピー）
             return new SlicedBufferView<T>(this, start, length);

@@ -28,8 +28,9 @@ namespace BitzLabs.BitzBuffer // または BitzLabs.BitzBuffer.Views など
         // 指定されたバッファが破棄されている場合に ObjectDisposedException をスローする汎用ヘルパーメソッド。
         private static void ThrowIfBufferIsDisposed(IReadOnlyBuffer<T> bufferToCheck, string bufferParameterName)
         {
-            // bufferToCheck 自体のnullチェックは呼び出し元で行うか、ここでも行うか設計次第。
-            // ArgumentNullException.ThrowIfNull(bufferToCheck, bufferParameterName); // 必要であれば追加
+            // bufferToCheck 自体が null でないことをまず確認する。
+            ArgumentNullException.ThrowIfNull(bufferToCheck, bufferParameterName);
+
             if (bufferToCheck.IsDisposed)
             {
                 throw new ObjectDisposedException(bufferParameterName ?? bufferToCheck.GetType().FullName, $"指定されたバッファ '{bufferParameterName}' は既に破棄されています。");
