@@ -86,7 +86,7 @@ namespace BitzLabs.BitzBuffer.Managed
                 ThrowIfDisposed();
                 return true;
             }
-        } 
+        }
 
         public ReadOnlySequence<T> AsReadOnlySequence()
         {
@@ -126,30 +126,23 @@ namespace BitzLabs.BitzBuffer.Managed
 
         public IReadOnlyBuffer<T> Slice(long start, long length)
         {
-            ThrowIfDisposed(); // この呼び出し後、_isDisposed は false。
-                               // _isDisposed が false の場合、_array は null ではないことが期待される。
-
-            // スライス範囲は現在の論理長(_length)を基準とする (方針B)。
+            ThrowIfDisposed();
+            // スライス範囲は現在の論理長(_length)を基準とする。
             if (start < 0 || start > _length)
             {
                 throw new ArgumentOutOfRangeException(nameof(start), $"引数 start ({start}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");
             }
-
             if (length < 0 || start + length > _length)
             {
                 throw new ArgumentOutOfRangeException(nameof(length), $"引数 length ({length}) が不正です。要求されたスライス範囲 [{start}-{start + length - 1}] は現在の長さ ({_length}) の範囲外です。");
             }
-
-            // TODO: SlicedBufferView<T> (Issue #11) のインスタンスを返却するように実装する。
-            // 現状はプレースホルダとしてNotImplementedExceptionをスロー。
-            throw new NotImplementedException("SlicedBufferView<T> はまだ実装されていません。Issue #11 を参照してください。");
+            // SlicedBufferView<T> を返す（ゼロコピー）
+            return new SlicedBufferView<T>(this, start, length);
         }
 
         public IReadOnlyBuffer<T> Slice(long start)
         {
-            ThrowIfDisposed(); // この呼び出し後、_isDisposed は false。
-                               // _isDisposed が false の場合、_array は null ではないことが期待される。
-
+            ThrowIfDisposed();
             if (start < 0 || start > _length)
             {
                 throw new ArgumentOutOfRangeException(nameof(start), $"引数 start ({start}) が不正です。0以上かつ現在の長さ ({_length}) 以下である必要があります。");

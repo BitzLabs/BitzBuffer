@@ -1,7 +1,11 @@
-﻿using System.Buffers;
-using BitzLabs.BitzBuffer.Managed; // BitzLabs.BitzBuffer 名前空間に ManagedBuffer<T> がある前提
+﻿using System;
+using System.Buffers;
+using System.Linq; // ToArray() のために追加
+using BitzLabs.BitzBuffer; // AttachmentResult がここにある想定
+using BitzLabs.BitzBuffer.Managed;
+using Xunit;
 
-namespace BitzLabs.BitzBuffer.Tests.Managed
+namespace BitzLabs.BitzBuffer.Tests.Managed // 名前空間を SlicedBufferViewTests と合わせる例
 {
     public class ManagedBufferTests
     {
@@ -37,7 +41,7 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
 
             // Assert
             Assert.False(buffer.IsOwner);
-            Assert.Equal(0, buffer.Length); // 他の初期状態も確認
+            Assert.Equal(0, buffer.Length);
             Assert.False(buffer.IsDisposed);
         }
 
@@ -64,7 +68,7 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
 
             // Act
             var mem1 = buffer.GetMemory(2);
-            Assert.True(mem1.Length >= 2); // 要求サイズ以上であることを確認
+            Assert.True(mem1.Length >= 2);
             mem1.Span[0] = value1;
             mem1.Span[1] = value2;
             buffer.Advance(2);
@@ -101,7 +105,7 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             buffer.Advance(3); // Length = 3, RemainingCapacity = 7
 
             // Act
-            var mem = buffer.GetMemory(0); // sizeHint = 0
+            var mem = buffer.GetMemory(0);
 
             // Assert
             Assert.Equal(7, mem.Length);
@@ -115,10 +119,10 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             buffer.Advance(8); // Length = 8, RemainingCapacity = 2
 
             // Act
-            var mem = buffer.GetMemory(5); // 5を要求
+            var mem = buffer.GetMemory(5);
 
             // Assert
-            Assert.Equal(2, mem.Length); // 実際には残容量の2が返る
+            Assert.Equal(2, mem.Length);
         }
 
         [Fact(DisplayName = "GetMemory: 残容量が0の場合、空のメモリを返す")]
@@ -129,7 +133,7 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             buffer.Advance(10); // Length = 10, RemainingCapacity = 0
 
             // Act
-            var mem = buffer.GetMemory(1); // 1を要求 (sizeHint=0でも同じはず)
+            var mem = buffer.GetMemory(1);
 
             // Assert
             Assert.True(mem.IsEmpty);
@@ -137,8 +141,8 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
 
 
         [Theory(DisplayName = "Advance: 不正なカウントでArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1)] // 負のカウント
-        [InlineData(11)] // 容量(10)を超えるカウント
+        [InlineData(-1)]
+        [InlineData(11)]
         public void Advance_WithInvalidCount_ThrowsArgumentOutOfRangeException(int countToAdvance)
         {
             // Arrange
@@ -170,14 +174,14 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             // Arrange
             var buffer = new ManagedBuffer<int>(new int[10], true);
             var data = new int[] { 10, 20, 30, 40, 50 };
-            buffer.Write(data.AsSpan()); // Write(ReadOnlySpan<T>) を使用して書き込み
+            buffer.Write(data.AsSpan());
 
             // Act
             var seq = buffer.AsReadOnlySequence();
 
             // Assert
             Assert.Equal(data.Length, seq.Length);
-            Assert.Equal(data, seq.ToArray()); // ToArray() でシーケンス全体を比較
+            Assert.Equal(data, seq.ToArray());
         }
 
         [Fact(DisplayName = "AsReadOnlySequence: 空バッファで空のシーケンスを返す")]
@@ -284,8 +288,7 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             var buffer = new ManagedBuffer<int>(new int[6], true);
             var segment1 = new int[] { 1, 2 };
             var segment2 = new int[] { 3, 4, 5 };
-            // ReadOnlySequence<T> を作成 (複数のセグメントを持つ場合もテストできるよう)
-            var ros = TestUtils.CreateReadOnlySequence(segment1, segment2); // TestUtilsは別途作成想定
+            var ros = TestUtils.CreateReadOnlySequence(segment1, segment2);
 
             // Act
             buffer.Write(ros);
@@ -300,10 +303,10 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
         public void Write_ThrowsIfSourceIsLargerThanInitialCapacity()
         {
             // Arrange
-            var buffer = new ManagedBuffer<byte>(new byte[2], true); // 容量2
+            var buffer = new ManagedBuffer<byte>(new byte[2], true);
 
             // Act & Assert
-            var exception = Assert.Throws<ArgumentException>(() => buffer.Write(new byte[] { 1, 2, 3 }.AsSpan())); // 長さ3のデータ
+            var exception = Assert.Throws<ArgumentException>(() => buffer.Write(new byte[] { 1, 2, 3 }.AsSpan()));
             Assert.Equal("source", exception.ParamName);
         }
 
@@ -312,82 +315,107 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
         {
             // Arrange
             var buffer = new ManagedBuffer<byte>(new byte[2], true);
-            buffer.Write(new byte[] { 1, 2 }.AsSpan()); // これで満杯
+            buffer.Write(new byte[] { 1, 2 }.AsSpan());
 
             // Act & Assert
             var exception = Assert.Throws<ArgumentException>(() => buffer.Write(new byte[] { 3 }.AsSpan()));
-            Assert.Equal("source", exception.ParamName); // またはvalue（Write(T)の場合）
+            Assert.Equal("source", exception.ParamName);
         }
 
         // --- Sliceメソッドのテスト ---
 
-        [Fact(DisplayName = "Slice: 未実装のためNotImplementedExceptionをスローする")]
-        public void Slice_ThrowsNotImplemented()
+        [Fact(DisplayName = "Slice: SlicedBufferViewを返し内容・長さが正しい")]
+        public void Slice_ReturnsSlicedBufferViewWithCorrectContentAndLength()
+        {
+            // Arrange
+            var buffer = new ManagedBuffer<int>(new int[5], true);
+            buffer.Write(new int[] { 10, 20, 30, 40, 50 }.AsSpan());
+
+            // Act
+            var slice = buffer.Slice(1, 3); // 20, 30, 40
+
+            // Assert
+            Assert.IsType<SlicedBufferView<int>>(slice);
+            Assert.Equal(3, slice.Length);
+            Assert.Equal(new int[] { 20, 30, 40 }, slice.AsReadOnlySequence().ToArray());
+            Assert.False(slice.IsDisposed);
+        }
+
+        [Fact(DisplayName = "Slice(start): SlicedBufferViewを返し内容・長さが正しい")]
+        public void Slice_SingleArgument_ReturnsSlicedBufferViewToEnd()
+        {
+            // Arrange
+            var buffer = new ManagedBuffer<int>(new int[5], true);
+            buffer.Write(new int[] { 1, 2, 3, 4, 5 }.AsSpan());
+
+            // Act
+            var slice = buffer.Slice(2); // 3, 4, 5
+
+            // Assert
+            Assert.IsType<SlicedBufferView<int>>(slice);
+            Assert.Equal(3, slice.Length);
+            Assert.Equal(new int[] { 3, 4, 5 }, slice.AsReadOnlySequence().ToArray());
+        }
+
+        [Fact(DisplayName = "Slice: Disposeしても元バッファには影響しない")]
+        public void Slice_Dispose_DoesNotAffectSourceBuffer()
         {
             // Arrange
             var buffer = new ManagedBuffer<int>(new int[3], true);
-            buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // データを書き込んでおく
+            buffer.Write(new int[] { 1, 2, 3 }.AsSpan());
+            var slice = buffer.Slice(0, 2);
 
-            // Act & Assert
-            Assert.Throws<NotImplementedException>(() => buffer.Slice(0, 1));
-            Assert.Throws<NotImplementedException>(() => buffer.Slice(1));
+            // Act
+            (slice as IDisposable)?.Dispose();
+
+            // Assert
+            Assert.True(slice.IsDisposed);
+            Assert.False(buffer.IsDisposed);
+            Assert.Equal(3, buffer.Length);
+        }
+
+        [Fact(DisplayName = "Slice: 空スライスも正しく返す")]
+        public void Slice_EmptySlice_ReturnsEmptySlicedBufferView()
+        {
+            // Arrange
+            var buffer = new ManagedBuffer<int>(new int[3], true);
+            buffer.Write(new int[] { 1, 2, 3 }.AsSpan());
+
+            // Act
+            var slice = buffer.Slice(2, 0); // 空
+
+            // Assert
+            Assert.IsType<SlicedBufferView<int>>(slice);
+            Assert.True(slice.IsEmpty);
+            Assert.Equal(0, slice.Length);
+            Assert.Empty(slice.AsReadOnlySequence().ToArray());
         }
 
         [Theory(DisplayName = "Slice(start, length): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1, 1)]
-        [InlineData(4, 1)]
-        [InlineData(0, -1)]
-        [InlineData(1, 3)]
-        public void Slice_StartLength_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, long length)
+        [InlineData(-1, 1, "start")]
+        [InlineData(4, 1, "start")]   // buffer.Length が 3 の場合、start > Length
+        [InlineData(0, -1, "length")]
+        [InlineData(1, 3, "length")]   // buffer.Length が 3 の場合、start + length > Length
+        public void Slice_StartLength_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, long length, string paramName)
         {
             var buffer = new ManagedBuffer<int>(new int[3], true);
             buffer.Write(new int[] { 1, 2, 3 }.AsSpan());
-            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start, length));
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start, length));
+            Assert.Equal(paramName, exception.ParamName);
         }
 
         [Theory(DisplayName = "Slice(start): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1)]
-        [InlineData(4)]
-        public void Slice_SingleArgument_WithInvalidStart_ThrowsArgumentOutOfRangeException(long start)
-        {
-            var buffer = new ManagedBuffer<int>(new int[3], true);
-            buffer.Write(new int[] { 1, 2, 3 }.AsSpan());
-            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start));
-        }
-
-        [Theory(DisplayName = "Slice(start, length): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1, 1)]  // start < 0
-        [InlineData(4, 1)]   // start > length
-        [InlineData(0, -1)]  // length < 0
-        [InlineData(1, 3)]   // start + length > length
-        public void Slice_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, long length)
+        [InlineData(-1, "start")] // start < 0
+        [InlineData(4, "start")]  // start > buffer.Length (Length=3 の場合)
+        public void Slice_Start_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start, string paramName)
         {
             // Arrange
             var buffer = new ManagedBuffer<int>(new int[3], true);
             buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // Length = 3
 
             // Act & Assert
-            if (length < 0 || start + length > buffer.Length || start < 0 || start > buffer.Length) // Slice(long)も考慮
-            {
-                Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start, length));
-            }
-            else // Slice(long) のテスト用 (length引数なし)
-            {
-                Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start));
-            }
-        }
-
-        [Theory(DisplayName = "Slice(start): 不正な引数でArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1)] // start < 0
-        [InlineData(4)]  // start > buffer.Length (Length=3 の場合)
-        public void Slice_Start_WithInvalidArguments_ThrowsArgumentOutOfRangeException(long start)
-        {
-            // Arrange
-            var buffer = new ManagedBuffer<int>(new int[3], true);
-            buffer.Write(new int[] { 1, 2, 3 }.AsSpan()); // Length = 3
-
-            // Act & Assert
-            Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start));
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Slice(start));
+            Assert.Equal(paramName, exception.ParamName);
         }
 
         // --- 状態変更メソッド (Clear, Truncate) のテスト ---
@@ -426,13 +454,13 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
         }
 
         [Theory(DisplayName = "Truncate: 不正な長さでArgumentOutOfRangeExceptionをスローする")]
-        [InlineData(-1)]  // 負の長さ
-        [InlineData(6)]   // 現在の長さ(5)を超える長さ
+        [InlineData(-1)]
+        [InlineData(6)]
         public void Truncate_WithInvalidLength_ThrowsArgumentOutOfRangeException(long newLength)
         {
             // Arrange
             var buffer = new ManagedBuffer<int>(new int[5], true);
-            buffer.Write(new int[] { 1, 2, 3, 4, 5 }.AsSpan()); // Length = 5
+            buffer.Write(new int[] { 1, 2, 3, 4, 5 }.AsSpan());
 
             // Act & Assert
             var exception = Assert.Throws<ArgumentOutOfRangeException>(() => buffer.Truncate(newLength));
@@ -470,7 +498,7 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
 
             // Assert
             Assert.Null(ex);
-            Assert.True(buffer.IsDisposed); // 状態は維持
+            Assert.True(buffer.IsDisposed);
         }
 
         [Fact(DisplayName = "Dispose後: 書き込み/状態変更操作でObjectDisposedExceptionをスローする")]
@@ -486,7 +514,6 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             Assert.Throws<ObjectDisposedException>(() => buffer.Advance(1));
             Assert.Throws<ObjectDisposedException>(() => buffer.Clear());
             Assert.Throws<ObjectDisposedException>(() => buffer.Truncate(0));
-            // Attach, Prependも同様
         }
 
         [Fact(DisplayName = "Dispose後: 読み取り操作でObjectDisposedExceptionをスローする")]
@@ -494,7 +521,6 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
         {
             // Arrange
             var buffer = new ManagedBuffer<int>(new int[2], true);
-            // データを書き込んでおく (読み取り対象がある状態を作るため)
             buffer.Write(1);
             buffer.Write(2);
             buffer.Dispose();
@@ -503,9 +529,10 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             Assert.Throws<ObjectDisposedException>(() => buffer.AsReadOnlySequence());
             Assert.Throws<ObjectDisposedException>(() => buffer.TryGetSingleSpan(out _));
             Assert.Throws<ObjectDisposedException>(() => buffer.TryGetSingleMemory(out _));
-            Assert.Throws<ObjectDisposedException>(() => { var len = buffer.Length; }); // Lengthプロパティも
+            Assert.Throws<ObjectDisposedException>(() => { var len = buffer.Length; });
             Assert.Throws<ObjectDisposedException>(() => buffer.Slice(0));
-            Assert.Throws<ObjectDisposedException>(() => { var isEmpty = buffer.IsEmpty; }); // ← 追加
+            Assert.Throws<ObjectDisposedException>(() => { var isEmpty = buffer.IsEmpty; });
+            Assert.Throws<ObjectDisposedException>(() => { var isSingle = buffer.IsSingleSegment; });
         }
 
         // --- 所有権がない場合のテスト (IsOwner = false) ---
@@ -514,7 +541,7 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
         public void WriteOperations_WhenNotOwner_ThrowsInvalidOperationException()
         {
             // Arrange
-            var buffer = new ManagedBuffer<int>(new int[2], false); // isOwner = false
+            var buffer = new ManagedBuffer<int>(new int[2], false);
 
             // Act & Assert
             Assert.False(buffer.IsOwner);
@@ -529,30 +556,45 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
         public void ReadOperations_WhenNotOwner_AreAllowed()
         {
             // Arrange
-            var array = new int[] { 10, 20 };
-            var buffer = new ManagedBuffer<int>(array, false); // isOwner = false
-            // 非所有バッファに直接書き込む手段は提供されない前提だが、テストのために内部状態を操作するか、
-            // または、isOwner=trueで作成・書き込み後、何らかの方法でisOwner=falseに遷移させるケースを模倣する。
-            // ManagedBufferの設計上、直接 _length を変更する手段はないため、
-            // このテストは「もし非所有バッファが何らかの形でデータを持っていた場合」の読み取り可能性を見る。
-            // もっとも、コンストラクタで初期長も渡せるようになれば、このテストはより自然になる。
-            // 現状では、このテストの有効性は限定的かもしれないが、IsOwnerフラグの役割確認にはなる。
-            // ここでは、読み取りが「例外をスローしないこと」を確認するに留める。
+            var array = new int[10];
+            var buffer = new ManagedBuffer<int>(array, false); // isOwner = false, Length = 0
 
             // Act & Assert
-            Assert.False(buffer.IsDisposed);
-            Assert.False(buffer.IsOwner);
+            Assert.False(buffer.IsDisposed, "バッファは破棄されていないはずです。");
+            Assert.False(buffer.IsOwner, "バッファは非所有のはずです。");
 
             Exception? ex = Record.Exception(() =>
             {
                 var seq = buffer.AsReadOnlySequence();
-                Assert.True(seq.IsEmpty); // 初期長0なので空のはず
-                buffer.TryGetSingleSpan(out var span);
-                Assert.True(span.IsEmpty);
+                Assert.True(seq.IsEmpty, "初期状態(Length=0)ではシーケンスは空のはずです。");
+
+                bool successSpan = buffer.TryGetSingleSpan(out var span);
+                Assert.False(successSpan, "初期状態(Length=0)ではTryGetSingleSpanはfalseを返すはずです。");
+                Assert.True(span.IsEmpty, "TryGetSingleSpanが失敗した場合、spanは空のはずです。");
+
+                bool successMemory = buffer.TryGetSingleMemory(out var memory);
+                Assert.False(successMemory, "初期状態(Length=0)ではTryGetSingleMemoryはfalseを返すはずです。");
+                Assert.True(memory.IsEmpty, "TryGetSingleMemoryが失敗した場合、memoryは空のはずです。");
+
                 var len = buffer.Length;
-                Assert.Equal(0, len);
-                // Sliceも例外が出ないことを確認 (ただし Slice 自体は NotImplemented)
-                Assert.Throws<NotImplementedException>(() => buffer.Slice(0));
+                // 初期状態のLengthは0のはずです。
+                Assert.Equal(0L, len); // 期待値をlongに明示 (lenがlongのため)
+
+                var isEmpty = buffer.IsEmpty;
+                Assert.True(isEmpty, "初期状態のIsEmptyはtrueのはずです。");
+
+                var isSingleSegment = buffer.IsSingleSegment;
+                Assert.True(isSingleSegment, "ManagedBufferは常に単一セグメントのはずです。");
+
+                var sliceView1 = buffer.Slice(0);
+                Assert.NotNull(sliceView1);
+                Assert.True(sliceView1.IsEmpty);
+                Assert.Equal(0, sliceView1.Length);
+
+                var sliceView2 = buffer.Slice(0, 0);
+                Assert.NotNull(sliceView2);
+                Assert.True(sliceView2.IsEmpty);
+                Assert.Equal(0, sliceView2.Length);
             });
             Assert.Null(ex);
         }
@@ -563,15 +605,14 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
         {
             // Arrange
             var array = new int[2] { 11, 22 };
-            var buffer = new ManagedBuffer<int>(array, false); // isOwner = false
+            var buffer = new ManagedBuffer<int>(array, false);
 
             // Act
             buffer.Dispose();
 
             // Assert
             Assert.True(buffer.IsDisposed);
-            Assert.False(buffer.IsOwner); // Dispose後は常にfalse
-            // 基盤配列の内容は変更されていないはず
+            Assert.False(buffer.IsOwner);
             Assert.Equal(11, array[0]);
             Assert.Equal(22, array[1]);
         }
@@ -592,67 +633,16 @@ namespace BitzLabs.BitzBuffer.Tests.Managed
             // Assert
             Assert.Contains("ManagedBuffer<Int32>", str);
             Assert.Contains("Length=2", str);
-            Assert.Contains("Capacity=10", str); // Capacityは内部配列の長さ (new int[10] で初期化)
+            Assert.Contains("Capacity=10", str);
             Assert.Contains("Owner=True", str);
             Assert.Contains("Disposed=False", str);
 
             buffer.Dispose();
             str = buffer.ToString();
-            Assert.Contains("Length=2", str); // Lengthは維持される想定
-            Assert.Contains("Capacity=0", str); // Dispose後は _array が null になるため Capacity は 0 (またはアクセス不可)
+            Assert.Contains("Length=2", str);
+            Assert.Contains("Capacity=0", str); // _array is null after Dispose if owned
             Assert.Contains("Owner=False", str);
             Assert.Contains("Disposed=True", str);
-        }
-    }
-
-    // Helper class for creating ReadOnlySequence<T> with multiple segments for testing
-    // (This should ideally be in a shared test utilities project or file)
-    internal static class TestUtils
-    {
-        public static ReadOnlySequence<T> CreateReadOnlySequence<T>(params T[][] segmentsData)
-        {
-            if (segmentsData == null || segmentsData.Length == 0)
-            {
-                return ReadOnlySequence<T>.Empty;
-            }
-
-            SegmentBase<T>? first = null;
-            SegmentBase<T>? last = null;
-
-            foreach (var data in segmentsData)
-            {
-                var segment = new Segment<T>(new ReadOnlyMemory<T>(data));
-                if (first == null)
-                {
-                    first = segment;
-                    last = segment;
-                }
-                else
-                {
-                    last = last!.Append(segment);
-                }
-            }
-            return new ReadOnlySequence<T>(first!, 0, last!, last!.Memory.Length);
-        }
-
-        private abstract class SegmentBase<T> : ReadOnlySequenceSegment<T>
-        {
-            protected SegmentBase(ReadOnlyMemory<T> memory)
-            {
-                Memory = memory;
-            }
-
-            public SegmentBase<T> Append(SegmentBase<T> nextSegment)
-            {
-                Next = nextSegment;
-                nextSegment.RunningIndex = RunningIndex + Memory.Length;
-                return nextSegment;
-            }
-        }
-
-        private sealed class Segment<T> : SegmentBase<T>
-        {
-            public Segment(ReadOnlyMemory<T> memory) : base(memory) { }
         }
     }
 }

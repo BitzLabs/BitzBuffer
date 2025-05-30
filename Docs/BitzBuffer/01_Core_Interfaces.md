@@ -125,7 +125,9 @@ public interface IReadOnlyBuffer<T> : IOwnedResource
     /// <param name="span">成功した場合、データ領域を指す ReadOnlySpan<T>。失敗した場合は default。</param>
     /// <returns>取得に成功した場合は true、それ以外の場合は false。</returns>
     /// <remarks>
-    /// IsOwner が false または IsDisposed が true の場合、例外をスローするか false を返すことが推奨されます。
+    /// このバッファインスタンスまたは参照元のリソースが破棄 (IsDisposed が true) されている場合は false を返します。
+    /// バッファが非連続メモリで構成されている場合や、データが存在しない場合も false を返します。
+    /// 例外をスローするのではなく、成否を bool 値で返すことを意図しています。
     /// </remarks>
     bool TryGetSingleSpan(out ReadOnlySpan<T> span);
 
@@ -136,7 +138,9 @@ public interface IReadOnlyBuffer<T> : IOwnedResource
     /// <param name="memory">成功した場合、データ領域を指す ReadOnlyMemory<T>。失敗した場合は default。</param>
     /// <returns>取得に成功した場合は true、それ以外の場合は false。</returns>
     /// <remarks>
-    /// IsOwner が false または IsDisposed が true の場合、例外をスローするか false を返すことが推奨されます。
+    /// このバッファインスタンスまたは参照元のリソースが破棄 (IsDisposed が true) されている場合は false を返します。
+    /// バッファが非連続メモリで構成されている場合や、データが存在しない場合も false を返します。
+    /// 例外をスローするのではなく、成否を bool 値で返すことを意図しています。
     /// </remarks>
     bool TryGetSingleMemory(out ReadOnlyMemory<T> memory);
 
