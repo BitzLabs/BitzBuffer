@@ -86,7 +86,7 @@ namespace BitzLabs.BitzBuffer.Managed
                 ThrowIfDisposed();
                 return true;
             }
-        } 
+        }
 
         public ReadOnlySequence<T> AsReadOnlySequence()
         {
@@ -403,7 +403,7 @@ namespace BitzLabs.BitzBuffer.Managed
                 // 将来提供されるクリアオプション付きのClearメソッドを使用してください。
                 // プーリング使用時は、プール返却時のクリアポリシーが適用されます (M2で実装予定)。
                 _array = null;
-        }
+            }
 
             _isDisposed = true;
             _isOwner = false; // Dispose後は、このインスタンスはリソースの所有権を失う。
