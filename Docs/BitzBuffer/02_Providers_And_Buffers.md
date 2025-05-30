@@ -102,14 +102,37 @@
 
 #### 4.3.1. `SlicedBufferView<T>` `where T : struct`
 
-`IBuffer<T>.Slice()` が返す `IReadOnlyBuffer<T>` の**実装クラス**です。
+`IBuffer<T>.Slice()` (または `IReadOnlyBuffer<T>.Slice()`) が返す `IReadOnlyBuffer<T>` の**実装クラス**です。
 
-*   **役割:** 元の `IBuffer<T>` の一部に対する読み取り専用ビュー。ゼロコピー。
-*   **内部構造 (概念):** `IBuffer<T> _sourceBuffer`, `long _offset`, `long _length` など。
-*   **ライフサイクル:** `IOwnedResource` を実装 (`IsOwner` は `false`)。元のバッファが無効になると自身も無効。
+*   **役割:** 元の `IBuffer<T>` (または `IReadOnlyBuffer<T>`) の一部に対する読み取り専用ビュー。ゼロコピーで動作します。
+*   **内部構造 (概念):** `IReadOnlyBuffer<T> _sourceBuffer`, `long _offset`, `long _length` など。
+*   **ライフサイクル:** `IOwnedResource` を実装 (`IsOwner` は `false`)。元のバッファが無効（破棄済み）になると、このビューからのデータアクセスも適切に処理される（通常は失敗し、`Try...`系メソッドは `false` を返すか、非`Try...`系メソッドは例外をスロー）。このビュー自身の `Dispose()` は、自身を破棄済み状態にするのみで、元のバッファには影響しません。
 *   **読み取り (`IReadOnlyBuffer<T>` 実装):**
-    *   `AsAttachableSegments()`: 元の `_sourceBuffer.AsAttachableSegments()` の結果を、このスライスの範囲 (`_offset`, `_length`) に合わせて適切にフィルタリングまたは調整して返します。各セグメントの所有者情報は元のバッファのものを参照しますが、このスライスビュー自体は所有権を持ちません。
-*   **`ToString()` (例):** `"SlicedBufferView<Int32>[Length=50, Owner=False, Disposed=False, SourceType=ManagedBuffer<Int32>, Offset=100]"`
+    *   `IsOwner`: 常に `false` を返します。
+    *   `IsDisposed`: このビュー自身の破棄状態を返します。
+    *   `Length`: スライスの長さを返します。
+    *   `IsEmpty`: `Length == 0` かどうかを返します。
+    *   `IsSingleSegment`:
+        *   このスライスビュー自体が、単一の連続したメモリセグメントとして表現できるかどうかを示します。
+        *   実装は、`this.AsReadOnlySequence().IsSingleSegment` の結果に依存します。つまり、元のバッファの該当範囲を `ReadOnlySequence<T>`としてスライスし、その結果が単一セグメントであるかで判断します。
+        *   元のバッファが連続メモリ（例: `ManagedBuffer<T>`）であれば、そのスライスも通常は単一セグメントです。
+        *   元のバッファが非連続メモリ（例: `SegmentedBuffer<T>`）の場合、スライス範囲が元のバッファの単一セグメント内に完全に収まっていれば `true` を、複数のセグメントにまたがる場合は `false` を返します。
+        *   自身または元のバッファが破棄済みの場合は、アクセス時に `ObjectDisposedException` がスローされます。
+    *   `AsReadOnlySequence()`:
+        *   元の `_sourceBuffer.AsReadOnlySequence()` の結果を、このスライスの範囲 (`_offset`, `_length`) に合わせて `Slice()` したものを返します。ゼロコピーで効率的です。
+        *   自身または元のバッファが破棄済みの場合は `ObjectDisposedException` をスローします。
+    *   `TryGetSingleMemory(out ReadOnlyMemory<T> memory)` / `TryGetSingleSpan(out ReadOnlySpan<T> span)`:
+        *   このスライスが単一の連続したメモリ領域/スパンとして表現できる場合に `true` を返し、`out` パラメータにその領域/スパンを設定します。
+        *   実装は、`this.AsReadOnlySequence()` の結果が `IsSingleSegment == true` である場合に、その `First` / `FirstSpan` プロパティを返す形となります。
+        *   自身または元のバッファが破棄済みの場合は `false` を返します（例外はスローしません）。
+        *   表現できない場合（非連続など）も `false` を返します。
+    *   `Slice(long start, long length)` / `Slice(long start)`:
+        *   このスライスビューからさらに新しい `SlicedBufferView<T>` を作成します。オフセットは元の `_sourceBuffer` 基準で正しく計算されます。
+        *   自身が破棄済みの場合は `ObjectDisposedException` をスローします。
+    *   `AsAttachableSegments()`: (Issue #33 で `BitzBufferSequenceSegment<T>` が定義された後に実装)
+        *   元の `_sourceBuffer.AsAttachableSegments()` の結果を、このスライスの範囲 (`_offset`, `_length`) に合わせて適切にフィルタリングまたは調整して返します。各セグメントの所有者情報は元のバッファのものを参照しますが、このスライスビュー自体は所有権を持ちません。
+        *   自身または元のバッファが破棄済みの場合は `ObjectDisposedException` をスローすることが想定されます（または空のシーケンス）。
+*   **`ToString()` (例):** `"SlicedBufferView<Int32>[Offset=100, Length=50, SourceDisposed=False, Disposed=False]"`
 
 ## 5. バッファの確保と設定
 
