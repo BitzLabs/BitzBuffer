@@ -10,8 +10,5 @@
   <ItemGroup>
     <InternalsVisibleTo Include="BitzBuffer.Tests" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Providers\" />
-  </ItemGroup>
 
 </Project>
