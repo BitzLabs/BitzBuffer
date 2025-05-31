@@ -37,6 +37,22 @@ namespace BitzLabs.BitzBuffer.Managed
         //     _pool = pool;
         // }
 
+        // このバッファが内部で保持している基になる配列の物理的な容量（要素数）を取得します。
+        // これは、バッファに書き込み可能な最大の要素数を表します。
+        // Length は現在書き込まれている論理的な長さを表すのに対し、Capacity は確保されている物理的な長さを表します。
+        // 注意: このプロパティは主にテストや内部的な確認のために internal としています。
+        //       Dispose後は _array が null になるため、0 を返すか ObjectDisposedException をスローするのが適切です。
+        //       (現在の ThrowIfDisposed() の実装では、_isDisposed が true なら例外がスローされます)
+        internal int Capacity
+        {
+            get
+            {
+                ThrowIfDisposed(); // まず自身の破棄状態をチェック
+                // _array は Dispose 時に null に設定されるため、null チェックが必要
+                return _array?.Length ?? 0;
+            }
+        }
+
         // バッファが破棄済みの場合に ObjectDisposedException をスローするヘルパーメソッド。
         // パフォーマンスクリティカルな箇所でのインライン化を期待。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
