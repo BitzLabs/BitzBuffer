@@ -60,8 +60,8 @@ graph TD
 ```csharp
 using System;
 using System.Buffers;
-using System.Collections.Generic; // For IEnumerable in IWritableBuffer<T>.TryAttachZeroCopy (placeholder)
-using System.Diagnostics.CodeAnalysis; // For MaybeNullWhen
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 // バッファの基本的な状態（所有権、破棄状態）を示すインターフェース。
 public interface IBufferState
