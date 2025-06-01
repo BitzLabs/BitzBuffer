@@ -1,1 +1,0 @@
-BitzBuffer.Pipelines の将来的な拡張項目。
