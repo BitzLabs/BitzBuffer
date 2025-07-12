@@ -1,24 +1,39 @@
-# BitzBuffer
+# Bitz3DGeo
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-BitzBufferは、BitzLabsという宇宙のビッグバン、その中心となる特異点です。テキストやバイナリデータを光速で処理するためのバッファ管理機構と、あらゆる変換処理の血流となるパイプラインの基本構造を定義します。
+Bitz3DGeoは、BitzLabsエコシステムの3D対応に向けた、将来の拡張のための専門ライブラリです。CSG (Constructive Solid Geometry) とBREP (Boundary Representation) のハイブリッドモデルを目指します。
 
-## 主な機能
+**注意: このリポジトリは現在、概念設計段階にあり、アクティブな開発は行われていません。**
+BitzLabsの将来のビジョンを示すためのプレースホルダーです。
 
--   **超効率バッファ管理**: 大規模なソースファイルを扱う際のパフォーマンスを最大化する、メモリに優しいバッファとストリーム操作。
--   **パイプライン・エンジン**: `source.Pipe(parser).Pipe(transformer).Pipe(renderer)` のように、処理を流麗なチェインで繋ぐことを可能にする、拡張可能なパイプライン実行基盤。
+## 主な機能 (構想)
 
-## ✅ 初期開発ToDoリスト
+-   **`Geo3DAST`の定義**: 3D形状を表現するための、ハイブリッドなAST。
+    -   **CSG (Constructive Solid Geometry)**: ブーリアン演算による形状構築。
+    -   **BREP (Boundary Representation)**: 面・辺・頂点による厳密なトポロジー表現。
+    -   **Mesh**: リアルタイムレンダリングや3Dプリンティングで広く使われる、ポリゴンメッシュ表現。
+-   **パーサー**: STEP, IGES (BREP), STL, OBJ (Mesh) などの標準的な3Dフォーマットを解釈します。
+-   **ジオメトリエンジン**: ブーリアン演算や、**テッセレーション**（BREP/CSGからMeshへの変換）などの形状操作を行います。
+-   **レンダラー/コンバーター**: `Geo3DAST`を、Webで表示可能な形式（glTFなど）や、レイトレーシング用のデータに変換します。
 
-1.  **`SourceBuffer`クラスの作成**:
-    *   文字列やファイルストリームを内部で保持する。
-    *   `Peek()` (文字を覗き見る), `Read()` (文字を読み進める), `IsEof` (終端判定) といった基本的な読み取りメソッドを実装。
-    *   現在の位置（行、列）を追跡する機能を実装。
-2.  **パイプラインインターフェースの定義**:
-    *   `IPipe<TIn, TOut>` のようなジェネリックインターフェースを定義。`Process(TIn input)` メソッドを持つ。
-    *   `.Pipe()` 拡張メソッドを実装し、複数の`IPipe`を連結できるようにする。
+## ✅ 初期開発ToDoリスト (概念設計のみ)
+
+1.  **`Geo3DAST`の型定義 (構想)**:
+    *   `IGeo3DNode`インターフェースを定義。
+    *   `BooleanOperationNode`, `TransformNode`, `PrimitiveNode` (CSG)
+    *   `BrepSolidNode` (BREP)
+    *   `MeshNode` (`Vertices`, `Indices`, `Normals`, `UVs`)
+2.  **ジオメトリエンジンの主要機能 (構想)**:
+    *   `Tessellator`: BREP/CSGから`MeshNode`を生成する機能のインターフェースを設計。
+3.  **プロジェクトファイルの作成**:
+    *   空のC#クラスライブラリプロジェクト (`Bitz3DGeo.csproj`) と、構想をまとめたドキュメント（`docs/ast-design.md`）を作成。
 
 ## このライブラリの位置づけ
 
-BitzBufferは、BitzLabsの哲学そのものです。すべてのデータは流れ、変換される。このライブラリは、その流れを生み出すための普遍的な法則を提供します。エコシステム内のほぼ全てのライブラリが、この基盤の上に成り立っています。
+将来的に、BitzLabsを2Dと3Dが統合された完全なテクニカルドキュメンテーション・プラットフォームへと進化させるための基盤です。`BitzDoc`と連携し、ドキュメント内にインタラクティブな3Dモデルを埋め込めるようにすることを目指します。
+
+### 依存関係 (予定)
+
+-   `BitzAstCore`
+-   `BitzParser`
